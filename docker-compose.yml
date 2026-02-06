@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  coach-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: slack-coach:latest
+    container_name: slack_coach_server
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=server
+    ports:
+      - "8080:8080"
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/app/state"
+    restart: unless-stopped
+
+  coach-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: slack-coach:latest
+    container_name: slack_coach_job
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=job
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/app/state"
+    # The job is intended to run and exit; use `docker compose run --rm coach-job` to execute manually
+    restart: "no"
+
+  coach-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: slack-coach:latest
+    container_name: slack_coach_cron
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=cron
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/app/state"
+    restart: unless-stopped

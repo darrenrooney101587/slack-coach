@@ -1,135 +1,161 @@
 # Daily SQL Coach
 
-A containerized, systemd-scheduled job that calls AWS Bedrock (Claude) to generate a daily Postgres SQL optimization tip and posts it to Slack.
+A containerized job that calls AWS Bedrock (Claude) to generate a daily Postgres SQL optimization tip and posts it to Slack.
 
-## Using Poetry
-This project now uses Poetry for dependency management and build. The Dockerfile installs and uses Poetry inside the image to create a minimal runnable container.
+This README covers local development with Poetry, building and running the Docker image, running the Flask interactive receiver, and running the daily job via a containerized cron service (or ad-hoc).
 
-## Prerequisites
+Key repo files
+- `app/main.py` - the job that generates content and posts to Slack
+- `app/server.py` - a small Flask receiver to handle Slack interactive button callbacks and record votes
+- `app/cron-runner.sh` - registers the crontab and starts cron in foreground
+- `app/entrypoint.sh` - container entrypoint that selects `job`, `server`, or `cron` modes
+- `Dockerfile` - builds the image using Poetry
+- `docker-compose.yml` - composes `coach-server`, `coach-job`, and `coach-cron`
+- `.env.example` - example environment file; copy to `.env` and fill in secrets
 
-1.  **AWS Account**:
-    *   Access to Bedrock models (specifically `anthropic.claude-3-5-sonnet-20240620-v1:0` or similar). Enable this in the AWS Console > Bedrock > Model Access.
-    *   EC2 Instance (Amazon Linux 2 or 2023 recommended, or Ubuntu) with Docker installed.
-    *   IAM Role for EC2 with `bedrock:InvokeModel` permission.
-2.  **Slack**:
-    *   **Webhook Mode**: Create an Incoming Webhook URL for your channel.
-    *   **Bot Mode**: Create a Slack App, add `chat:write` scope, install to workspace, invite bot to channel.
+Quick overview
+- Use Poetry for dependency management during development.
+- Build a single Docker image that can run in three modes:
+  - `job` — run the job once and exit
+  - `server` — run the Flask receiver for Slack interactive events
+  - `cron` — run cron and execute the job on the schedule in `CRON_SCHEDULE`
+- Persist runtime state (votes, dedupe state, cron logs) on the host via `HOST_STATE_DIR` (mounted to `/app/state`).
 
-## 1. Build and Push (ECR)
+Prerequisites
+- Docker & Docker Compose installed on the host
+- A Slack App with a Bot token and Interactivity enabled (for button callbacks)
+- AWS access to Bedrock (either via instance role or exported env vars)
 
-These steps assume you are running from your local machine using the `etl-playground` AWS profile.
-Replace `ACCOUNT_ID` and `REGION` with your values.
+Using Poetry (development)
 
-**Authenticate to ECR:**
+1. Install project dependencies with Poetry:
+
 ```bash
-aws ecr get-login-password --region REGION --profile etl-playground | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com
+poetry install
 ```
 
-**Create Repository (if needed):**
+2. Run the job locally:
+
 ```bash
-aws ecr create-repository --repository-name sqlcoach --profile etl-playground
+# run the job once using Poetry environment
+poetry run python app/main.py
 ```
 
-**Build and Push:**
+3. Run the Flask interactive server locally for testing (use ngrok to expose to Slack):
+
 ```bash
-docker build -t sqlcoach .
-# If you want to use ECR push, tag for ECR and push
-# docker tag sqlcoach:latest ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/sqlcoach:latest
-# docker push ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/sqlcoach:latest
+poetry run python app/server.py
+# then in another terminal, expose with ngrok:
+# ngrok http 8080
 ```
 
-## 1b. Alternative: Build directly on EC2 (recommended when you have SSH access)
+Docker / Docker Compose (recommended for deployment)
 
-Since you have SSH access, you can clone/pull the repository on EC2 and build there. This approach uses the EC2 instance role for AWS access and avoids dealing with ECR from your laptop.
+1. Copy `.env.example` to `.env` and populate values (Slack tokens, signing secret, AWS info, HOST_STATE_DIR, etc.).
 
-1.  **Clone/pull on EC2:**
-    ```bash
-    ssh ec2-user@YOUR_EC2_IP
-    cd ~
-    git clone git@github.com:YOUR_ORG/YOUR_REPO.git
-    cd YOUR_REPO/slack/sql_coach
-    ```
-2.  **Build on EC2:**
-    ```bash
-    # build the image (Dockerfile will use Poetry inside the image)
-    docker build -t sqlcoach .
-    ```
-
-## 2. Install on EC2
-
-ssh into your EC2 instance.
-
-**Pull the Image:**
 ```bash
-# If you pushed to ECR, pull the image on EC2
-aws ecr get-login-password --region REGION --profile etl-playground | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com
-docker pull ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/sqlcoach:latest
-# Tag it for the service file to find easily
-docker tag ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/sqlcoach:latest sqlcoach:latest
+cp .env.example .env
+# edit .env (SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, SLACK_SIGNING_SECRET, AWS creds if needed)
 ```
 
-**Create State Directory:**
+Important env vars in `.env` (fill these in):
+- `SLACK_BOT_TOKEN` — bot user token (xoxb-...)
+- `SLACK_CHANNEL_ID` — channel id where the bot posts
+- `SLACK_SIGNING_SECRET` — used by the Flask receiver to verify Slack requests
+- `AWS_REGION`, `BEDROCK_MODEL_ID` — Bedrock model and region
+- Optional: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` if you want to provide explicit credentials
+- `HOST_STATE_DIR` — host directory to persist `/app/state` (default `./state`)
+
+2. Build the Docker image with Compose (this uses the `Dockerfile` and Poetry inside the image):
+
 ```bash
-sudo mkdir -p /var/lib/sqlcoach
-# Ensure the user inside docker can write.
-sudo chmod 777 /var/lib/sqlcoach
+docker compose build
 ```
 
-**Configure Environment:**
-Copy `config/.env` to `/etc/.env` and edit it:
+3. Create the host state folder and ensure ownership:
+
 ```bash
-sudo cp config/.env /etc/.env
-sudo nano /etc/.env
+mkdir -p ${HOST_STATE_DIR:-./state}
+sudo chown "$(id -u):$(id -g)" ${HOST_STATE_DIR:-./state}
+chmod 700 ${HOST_STATE_DIR:-./state}
 ```
 
-## 3. Systemd Service Setup
+4. Start services:
+- Start the server (Flask receiver) and cron runner (scheduled job):
 
-**Copy Unit Files:**
 ```bash
-sudo cp systemd/sqlcoach.service /etc/systemd/system/
-sudo cp systemd/sqlcoach.timer /etc/systemd/system/
+docker compose up -d coach-server coach-cron
 ```
 
-**Adjust Image Name:**
-Edit `/etc/systemd/system/sqlcoach.service` to point to your ECR image URI if you didn't tag it locally as `sqlcoach:latest`.
+- Run the job once (ad-hoc run):
 
-**Enable and Start:**
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now sqlcoach.timer
+docker compose run --rm coach-job
 ```
 
-**Check Status:**
+How the cron service works
+- `coach-cron` runs the single image in `RUN_MODE=cron`.
+- `CRON_SCHEDULE` in `.env` controls when the job runs (default `0 9 * * *`, which runs daily at 09:00 UTC).
+- The cron job logs to `/app/state/cron.log` (host-mounted at `${HOST_STATE_DIR:-./state}/cron.log`).
+- To change schedule, update `.env` and then restart the cron container:
+
 ```bash
-systemctl list-timers sqlcoach.timer
+docker compose restart coach-cron
 ```
 
-## 4. Manual Run & Testing
+State persistence and where data is stored
+- The containers mount `HOST_STATE_DIR` from the host into `/app/state` inside the container.
+- Files stored there:
+  - `votes.json` — recorded votes from Slack interactive buttons
+  - `last_sent.json` — dedupe state for last-sent date
+  - `cron.log` — cron stdout/stderr from scheduled runs
 
-To force a run immediately (will post to Slack if not already posted today):
+Verify votes and logs
+
 ```bash
-sudo systemctl start sqlcoach.service
+# list state files
+ls -la ${HOST_STATE_DIR:-./state}
+
+# pretty print votes
+cat ${HOST_STATE_DIR:-./state}/votes.json | jq .
+
+# view cron logs
+tail -n 200 ${HOST_STATE_DIR:-./state}/cron.log
 ```
 
-**Check Logs:**
+Slack App configuration notes
+- In the Slack App config:
+  - Add `chat:write` to Bot Token Scopes and reinstall the app
+  - Enable Interactivity and set the Request URL to the public URL of your server (e.g., https://myhost/slack/actions). For local testing use ngrok.
+
+Security & secrets
+- Use secrets manager in production (do not check `.env` into git)
+- Set `SLACK_SIGNING_SECRET` so the Flask receiver verifies incoming Slack requests
+
+Handling credentials for Bedrock
+- Preferred: run containers on EC2 with an instance role that has Bedrock permissions (no keys required)
+- Alternative: set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and optional `AWS_SESSION_TOKEN`) in `.env`.
+
+Troubleshooting
+- Read logs:
+
 ```bash
-journalctl -u sqlcoach.service -n 200
+docker compose logs coach-server --tail 200
+docker compose logs coach-cron --tail 200
 ```
 
-## Troubleshooting
+- If the job reports `The security token included in the request is invalid.`, double-check the credentials you're using (either the explicit AWS env vars or the instance role / shared credentials).
+- If you get `Failed to create state directory` on startup, ensure `HOST_STATE_DIR` on the host is writable by the container user (chown/chmod as needed).
 
--   **Bedrock Access Denied:** Check IAM role attached to EC2. Ensure Model Access is granted in Bedrock console.
--   **Slack Error:** Verify Webhook URL or Bot Token. Check `SLACK_CHANNEL_ID` for bot mode.
--   **No Post:** Check logs (`journalctl`). If "Message already sent for date", delete `/var/lib/sqlcoach/last_sent.json` to reset.
--   **Docker permission:** Ensure `/var/lib/sqlcoach` is writable by the container user.
+Production notes & recommendations
+- Persist the `HOST_STATE_DIR` to a stable host path or a mounted volume.
+- For higher concurrency, consider replacing the JSON file votes store with SQLite (atomic writes) or a small DB.
+- It's recommended to run `coach-cron` or scheduling in your orchestrator (e.g., Kubernetes CronJob) rather than running a long-lived containerized cron in production.
 
-## Cost Note
-Running this once per day results in ~30 input tokens and ~450 output tokens.
-Estimated cost is negligible (fractions of a cent per month).
+Support and next steps
+- I can help convert the votes storage to SQLite and add an admin endpoint to query votes.
+- I can update the job to capture Slack message `ts` and use it as the canonical `message_id` for vote aggregation.
 
-## Timezone Configuration
-By default, the timer runs on UTC schedule. To run at a specific local time (e.g. 9 AM CST):
+---
 
-1.  Set the EC2 timezone: `sudo timedatectl set-timezone America/Chicago`
-2.  Update `/etc/.env` with `TZ=America/Chicago` so the bot generates the correct "today" date.
-3.  Reload timers: `sudo systemctl daemon-reload`
+If you'd like, I can also add a short `README_QUICKSTART.md` that contains only the minimal commands to get started locally with Docker Compose.

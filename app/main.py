@@ -8,6 +8,7 @@ import random
 import boto3
 import requests
 import tempfile
+import time
 
 from environment import load_env
 
@@ -195,21 +196,23 @@ class SQLCoach:
     def generate_content(self, topic: str) -> str:
         """Calls Bedrock to generate the content."""
         prompt = f"""You are an expert Postgres database administrator and educator.
-Your task is to create a "Daily SQL Coach" tip about the following topic: "{topic}".
+Create a professional "Daily SQL Coach" tip about: "{topic}".
 
-Requirements:
-1. One-sentence headline.
-2. 2-3 actionable bullet points (highest impact first).
-3. A SQL snippet (5-15 lines) demonstrating the concept.
-4. One "Why this matters:" sentence.
-5. Max ~1200 characters total.
-6. Do not include generic fluff.
-7. Do not propose destructive SQL (DROP/DELETE/TRUNCATE).
-8. Be accurate and technical.
-9. Format for Slack (you can use *bold*, `code`, ```code blocks```).
+Structure:
+1. *Topic Header*: Brief, professional one-line description of the concept
+2. *Key Insights*: 2-3 concise, high-impact bullet points (prioritize actionable advice)
+3. *Example*: Clean SQL code snippet (5-15 lines) with inline comments
+4. *Impact*: One clear sentence explaining the business/performance value
 
-Output the message directly. Do not wrap in JSON.
-"""
+Guidelines:
+- Be precise and technical, avoid generic statements
+- Use professional tone suitable for senior engineers
+- Format for Slack: *bold* for headers, `inline code`, ```code blocks```
+- Keep total length under 1200 characters
+- Never suggest destructive operations (DROP/DELETE/TRUNCATE)
+- Focus on practical, immediately applicable knowledge
+
+Output only the formatted message, no JSON wrapper."""
 
         payload = {
             "anthropic_version": "bedrock-2023-05-31",
@@ -259,7 +262,7 @@ Output the message directly. Do not wrap in JSON.
 
             raise
 
-    def post_to_slack(self, message: str) -> None:
+    def post_to_slack(self, message: str, topic: str = None, message_id: str = None) -> None:
         """Posts the message to Slack."""
         full_message = f"*{self.title_prefix}*\n\n{message}"
 
@@ -275,10 +278,45 @@ Output the message directly. Do not wrap in JSON.
                 'Authorization': f'Bearer {self.slack_bot_token}',
                 'Content-Type': 'application/json'
             }
+
+            # If caller didn't provide a message_id, use current time
+            if not message_id:
+                message_id = str(int(time.time() * 1000))
+
+            # Build block kit with buttons
+            # Button values include metadata so the server can record who voted for which topic/date
+            meta = json.dumps({'message_id': message_id, 'topic': topic, 'date': self._get_today_date()})
+
+            blocks = [
+                {
+                    'type': 'section',
+                    'text': {'type': 'mrkdwn', 'text': full_message}
+                },
+                {
+                    'type': 'actions',
+                    'elements': [
+                        {
+                            'type': 'button',
+                            'text': {'type': 'plain_text', 'text': '👍'},
+                            'action_id': 'thumbs_up',
+                            'value': meta
+                        },
+                        {
+                            'type': 'button',
+                            'text': {'type': 'plain_text', 'text': '👎'},
+                            'action_id': 'thumbs_down',
+                            'value': meta
+                        }
+                    ]
+                }
+            ]
+
             payload = {
                 'channel': self.slack_channel_id,
-                'text': full_message
+                'blocks': blocks,
+                'text': self.title_prefix
             }
+
             response = requests.post(
                 'https://slack.com/api/chat.postMessage',
                 headers=headers,
