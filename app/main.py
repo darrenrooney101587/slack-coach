@@ -211,6 +211,7 @@ Guidelines:
 - Be precise and technical, avoid generic statements
 - Use professional tone suitable for senior engineers
 - Format for Slack: *bold* for headers, `inline code`, ```code blocks```
+- Use `code` styling (backticks) for SQL keywords, technical terms, and configuration parameters to highlight them
 - Keep total length under 1200 characters
 - Never suggest destructive operations (DROP/DELETE/TRUNCATE)
 - Focus on practical, immediately applicable knowledge
@@ -294,20 +295,29 @@ Output only the formatted message, no JSON wrapper."""
             # Button values include metadata so the server can record who voted for which topic/date
             meta = json.dumps({'message_id': message_id, 'topic': topic, 'date': self._get_today_date()})
 
-            # Section with optional accessory image next to the title/message
-            first_section = {
+            # Header Section with optional accessory image next to the title
+            header_section = {
                 'type': 'section',
-                'text': {'type': 'mrkdwn', 'text': full_message}
+                'text': {'type': 'mrkdwn', 'text': f"*{self.title_prefix}*"}
             }
             if self.slack_coach_image_url:
-                first_section['accessory'] = {
+                header_section['accessory'] = {
                     'type': 'image',
                     'image_url': self.slack_coach_image_url,
-                    'alt_text': 'Daily Postgres Coach'
+                    'alt_text': self.title_prefix
                 }
 
+            # Body Section
+            body_section = {
+                'type': 'section',
+                'text': {'type': 'mrkdwn', 'text': message}
+            }
+
             blocks = [
-                first_section,
+                header_section,
+                {'type': 'divider'},
+                body_section,
+                {'type': 'divider'},
                 {
                     'type': 'actions',
                     'elements': [
