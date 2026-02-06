@@ -10,7 +10,6 @@ import requests
 import tempfile
 import time
 
-from environment import load_env
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +20,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-load_env()
 # Constants
 DEFAULT_TOPICS = [
     "sargable date predicates",
