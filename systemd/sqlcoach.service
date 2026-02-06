@@ -1,0 +1,17 @@
+[Unit]
+Description=Daily SQL Coach Slack Broadcaster
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# Ensure you have built/pulled the image tagged as sqlcoach:latest
+# or update the image reference below.
+ExecStart=/usr/bin/docker run --rm \
+    --name sqlcoach \
+    --env-file /etc/.env \
+    -v /var/lib/sqlcoach:/state \
+    sqlcoach:latest
+
+[Install]
+WantedBy=multi-user.target
