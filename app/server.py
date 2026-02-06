@@ -65,22 +65,34 @@ def slack_actions():
     except Exception:
         meta = {}
 
+    action_id = action.get('action_id')
+    # Normalize vote type for next topic
+    if action_id.startswith('vote_next_topic'):
+        vote_type = 'vote_next_topic'
+    else:
+        vote_type = action_id
+
     vote_payload = {
         'message_id': meta.get('message_id') or data.get('container', {}).get('message_ts') or meta.get('ts'),
         'topic': meta.get('topic'),
+        'candidate': meta.get('candidate'),
         'date': meta.get('date'),
         'user_id': user.get('id'),
         'user_name': user.get('username') or user.get('name'),
-        'vote': action.get('action_id')  # 'thumbs_up' or 'thumbs_down'
+        'vote': vote_type
     }
 
     record_vote_payload(vote_payload)
 
     # Respond with an ephemeral confirmation
+    response_text = 'Thanks — your vote was recorded.'
+    if vote_payload['vote'] == 'vote_next_topic' and vote_payload['candidate']:
+         response_text = f"Thanks! You voted for: {vote_payload['candidate']}"
+
     return jsonify({
         'response_type': 'ephemeral',
         'replace_original': False,
-        'text': 'Thanks — your vote was recorded.'
+        'text': response_text
     })
 
 

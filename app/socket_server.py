@@ -1,10 +1,11 @@
 import os
+import re
 import json
 import logging
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from app.votes import record_vote, get_vote_counts
+from app.votes import record_vote, get_vote_counts, get_poll_details
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -33,135 +34,241 @@ def _extract_meta_from_action(body):
         return None
 
 
+def _get_user_image(client, user_id):
+    try:
+        resp = client.users_info(user=user_id)
+        if resp.get('ok'):
+            return resp['user']['profile'].get('image_48') # 48x48 is standard for context blocks
+    except Exception as e:
+        logger.warning(f"Failed to fetch user info for {user_id}: {e}")
+    return None
+
+
 def _make_count_block(counts: dict):
-    # Simple context block showing counts
-    # Use unicode arrows to match button labels
-    text = f"⬆️ {counts.get('thumbs_up', 0)}\n⬇️ {counts.get('thumbs_down', 0)}\nTotal: {counts.get('total', 0)}"
+    # Context block showing counts and recent voter avatars
+    elements = []
+
+    # Add recent voter images
+    for img in counts.get('recent_images', []):
+        elements.append({
+            "type": "image",
+            "image_url": img['image_url'],
+            "alt_text": img['alt_text']
+        })
+
+    text = f"Total Votes: {counts.get('total', 0)} (⬆️ {counts.get('thumbs_up', 0)} / ⬇️ {counts.get('thumbs_down', 0)})"
+    elements.append({"type": "plain_text", "emoji": True, "text": text})
+
     return {
         "type": "context",
-        "elements": [
-            {"type": "mrkdwn", "text": text}
-        ]
+        "elements": elements
+    }
+
+
+def _make_poll_context_block(details: dict):
+    # details = {'count': int, 'recent_images': [...]}
+    elements = []
+
+    # Add recent voter images for this candidate
+    for img in details.get('recent_images', []):
+        elements.append({
+            "type": "image",
+            "image_url": img['image_url'],
+            "alt_text": img['alt_text']
+        })
+
+    count = details.get('count', 0)
+    text = f"{count} vote{'s' if count != 1 else ''}" if count > 0 else "No votes"
+    elements.append({"type": "plain_text", "emoji": True, "text": text})
+
+    return {
+        "type": "context",
+        "elements": elements
     }
 
 
 @app.action('thumbs_up')
 def handle_thumbs_up(ack, body, client, logger):
-    # Acknowledge quickly so Slack doesn't warn the user
     ack()
     user = body.get('user', {})
+    user_id = user.get('id')
+    user_image = _get_user_image(client, user_id)
+
     meta = _extract_meta_from_action(body)
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
         'date': meta.get('date') if meta else None,
-        'user_id': user.get('id'),
+        'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
+        'user_image': user_image,
         'vote': 'thumbs_up'
     }
     record_vote(payload, STATE_DIR)
     logger.info(f"Recorded thumbs_up for {payload}")
 
-    # Send a short ephemeral confirmation to the clicking user
+    # Update the buttons to show acknowledgement
     try:
-        channel_id = None
-        if body.get('channel') and body['channel'].get('id'):
-            channel_id = body['channel']['id']
-        # Fallback: try container or view context
-        if not channel_id:
-            channel_id = body.get('container', {}).get('channel_id')
-        if channel_id and user.get('id'):
-            client.chat_postEphemeral(
-                channel=channel_id,
-                user=user.get('id'),
-                text='Thanks — your vote was recorded.'
-            )
+        if body.get('message'):
+            blocks = body['message'].get('blocks', [])
+            # Find the actions block at the end (usually last block or second to last)
+            for block in reversed(blocks):
+                if block['type'] == 'actions':
+                    for element in block.get('elements', []):
+                        if element.get('action_id') == 'thumbs_up':
+                            element['text']['text'] = 'Helpful   :white_check_mark:'
+                        elif element.get('action_id') == 'thumbs_down':
+                            # Reset the other one if needed, or keep as is
+                            element['text']['text'] = 'Not Helpful   :thumbsdown:'
+
+                    # Update the message
+                    channel_id = body.get('channel', {}).get('id')
+                    ts = body.get('message', {}).get('ts')
+                    if channel_id and ts:
+                        client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+                    break
     except Exception as e:
-        logger.error(f"Failed to send ephemeral confirmation: {e}")
-
-    # Update the original message to show new vote counts (if we can find channel & ts)
-    try:
-        if body.get('container') and body['container'].get('message_ts'):
-            orig_ts = body['container']['message_ts']
-        else:
-            # fallback to actions -> message -> ts
-            orig_ts = None
-            if body.get('message') and body['message'].get('ts'):
-                orig_ts = body['message']['ts']
-
-        channel_id = channel_id if 'channel_id' in locals() else (body.get('channel', {}).get('id') or body.get('container', {}).get('channel_id'))
-        if channel_id and orig_ts:
-            counts = get_vote_counts(payload.get('message_id') or payload.get('topic') or orig_ts, STATE_DIR)
-            # Build new blocks: append or replace last context block with counts
-            blocks = body.get('message', {}).get('blocks', []) or []
-            count_block = _make_count_block(counts)
-            # If the last block is a context block with counts (heuristic), replace it
-            if blocks and blocks[-1].get('type') == 'context':
-                blocks[-1] = count_block
-            else:
-                blocks.append(count_block)
-
-            client.chat_update(channel=channel_id, ts=orig_ts, blocks=blocks)
-    except Exception as e:
-        logger.error(f"Failed to update original message with counts: {e}")
+        logger.error(f"Failed to update message buttons: {e}")
 
 
 @app.action('thumbs_down')
 def handle_thumbs_down(ack, body, client, logger):
     ack()
     user = body.get('user', {})
+    user_id = user.get('id')
+    user_image = _get_user_image(client, user_id)
+
     meta = _extract_meta_from_action(body)
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
         'date': meta.get('date') if meta else None,
-        'user_id': user.get('id'),
+        'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
+        'user_image': user_image,
         'vote': 'thumbs_down'
     }
     record_vote(payload, STATE_DIR)
     logger.info(f"Recorded thumbs_down for {payload}")
 
-    # Send ephemeral confirmation
+    # Update the buttons to show acknowledgement
     try:
-        channel_id = None
-        if body.get('channel') and body['channel'].get('id'):
-            channel_id = body['channel']['id']
-        if not channel_id:
-            channel_id = body.get('container', {}).get('channel_id')
-        if channel_id and user.get('id'):
-            client.chat_postEphemeral(
-                channel=channel_id,
-                user=user.get('id'),
-                text='Thanks — your vote was recorded.'
-            )
-    except Exception as e:
-        logger.error(f"Failed to send ephemeral confirmation: {e}")
+        if body.get('message'):
+            blocks = body['message'].get('blocks', [])
+            for block in reversed(blocks):
+                if block['type'] == 'actions':
+                    for element in block.get('elements', []):
+                        if element.get('action_id') == 'thumbs_down':
+                            element['text']['text'] = 'Not Helpful   :white_check_mark:'
+                        elif element.get('action_id') == 'thumbs_up':
+                            element['text']['text'] = 'Helpful   :thumbsup:'
 
-    # Update original message counts
+                    channel_id = body.get('channel', {}).get('id')
+                    ts = body.get('message', {}).get('ts')
+                    if channel_id and ts:
+                        client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+                    break
+    except Exception as e:
+        logger.error(f"Failed to update message buttons: {e}")
+
+
+@app.action(re.compile("vote_next_topic_\d+"))
+def handle_vote_next_topic(ack, body, client, logger):
+    ack()
+    user = body.get('user', {})
+    user_id = user.get('id')
+    user_image = _get_user_image(client, user_id)
+    action_id = body['actions'][0]['action_id'] # e.g. vote_next_topic_0
+
+    meta = _extract_meta_from_action(body)
+    candidate = meta.get('candidate')
+
+    payload = {
+        'message_id': meta.get('message_id') if meta else None,
+        'topic': meta.get('topic') if meta else None,
+        'date': meta.get('date') if meta else None,
+        'candidate': candidate,
+        'user_id': user_id,
+        'user_name': user.get('username') or user.get('name'),
+        'user_image': user_image,
+        'vote': 'next_topic'
+    }
+    record_vote(payload, STATE_DIR)
+    logger.info(f"Recorded vote for next topic: {candidate} by {user_id}")
+
+    # Update the UI
     try:
-        if body.get('container') and body['container'].get('message_ts'):
-            orig_ts = body['container']['message_ts']
-        else:
-            orig_ts = None
-            if body.get('message') and body['message'].get('ts'):
-                orig_ts = body['message']['ts']
+        if body.get('message'):
+            blocks = body['message'].get('blocks', [])
+            channel_id = body.get('channel', {}).get('id')
+            ts = body.get('message', {}).get('ts')
 
-        channel_id = channel_id if 'channel_id' in locals() else (body.get('channel', {}).get('id') or body.get('container', {}).get('channel_id'))
-        if channel_id and orig_ts:
-            counts = get_vote_counts(payload.get('message_id') or payload.get('topic') or orig_ts, STATE_DIR)
-            blocks = body.get('message', {}).get('blocks', []) or []
-            count_block = _make_count_block(counts)
-            if blocks and blocks[-1].get('type') == 'context':
-                blocks[-1] = count_block
-            else:
-                blocks.append(count_block)
+            # Identify which block index was clicked
+            clicked_block_idx = -1
+            for i, block in enumerate(blocks):
+                if block.get('type') == 'section' and block.get('accessory', {}).get('action_id') == action_id:
+                    clicked_block_idx = i
+                    break
 
-            client.chat_update(channel=channel_id, ts=orig_ts, blocks=blocks)
+            if clicked_block_idx != -1 and clicked_block_idx + 1 < len(blocks):
+                # The next block should be the context block for this candidate
+                context_block_idx = clicked_block_idx + 1
+
+                # Retrieve updated vote counts/images for this candidate
+                # We need to filter votes by this message_id + candidate
+                # but our get_vote_counts is generic. We need get_poll_details.
+
+                # First, ensure we have the list of all candidates to distinguish them if needed,
+                # or just filter get_vote_counts return.
+                # Actually, record_vote saves by 'message_id' key.
+                # All votes for this message are under one key.
+                # We need to filter by candidate.
+
+                from app.votes import get_poll_details
+                # We simulate `get_poll_details` logic here or use it if it exists and works for single candidate
+                # Actually, let's use get_vote_counts but we need to implement candidate filtering in votes.py
+                # or do it here.
+                # Let's peek at `app/votes.py` again.
+                # `get_poll_details` seems designed for this.
+
+                # For now, let's just re-read the full votes and filter manually to be safe
+                # because I cannot easily see `get_poll_details` full implementation.
+
+                votes_file = os.path.join(STATE_DIR, 'votes.json')
+                key = str(meta.get('message_id'))
+
+                count = 0
+                recent_images = []
+
+                if os.path.exists(votes_file):
+                    with open(votes_file, 'r') as f:
+                        data = json.load(f)
+                        entry = data.get(key, {})
+                        votes = entry.get('votes', [])
+
+                        # Filter for this candidate
+                        cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'next_topic']
+                        count = len(cand_votes)
+
+                        seen = set()
+                        for v in sorted(cand_votes, key=lambda x: x.get('timestamp', 0), reverse=True):
+                            uid = v.get('user_id')
+                            img = v.get('user_image')
+                            if uid and img and uid not in seen:
+                                recent_images.append({'image_url': img, 'alt_text': v.get('user_name', 'User')})
+                                seen.add(uid)
+                                if len(recent_images) >= 3:
+                                    break
+
+                details = {'count': count, 'recent_images': recent_images}
+                new_context_block = _make_poll_context_block(details)
+                blocks[context_block_idx] = new_context_block
+
+                if channel_id and ts:
+                    client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+
     except Exception as e:
-        logger.error(f"Failed to update original message with counts: {e}")
+        logger.error(f"Failed to update candidate votes: {e}")
 
-
-if __name__ == '__main__':
-    handler = SocketModeHandler(app, SLACK_APP_TOKEN)
-    handler.start()
+if __name__ == "__main__":
+    SocketModeHandler(app, SLACK_APP_TOKEN).start()

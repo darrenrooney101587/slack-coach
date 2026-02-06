@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   coach-job:
+    build: .
     image: slack-coach:latest
     container_name: slack_coach_job
     env_file:
@@ -25,6 +26,7 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
 
   coach-cron:
+    build: .
     image: slack-coach:latest
     container_name: slack_coach_cron
     env_file:
@@ -45,6 +47,7 @@ services:
     user: "${CRON_USER:-0}:${CRON_GROUP:-0}"
 
   coach-socket:
+    build: .
     image: slack-coach:latest
     container_name: slack_coach_socket
     env_file:
