@@ -6,6 +6,7 @@ services:
       - .env
     environment:
       - RUN_MODE=server
+      - STATE_DIR=/app/state
     ports:
       - "8080:8080"
     volumes:
@@ -19,6 +20,7 @@ services:
       - .env
     environment:
       - RUN_MODE=job
+      - STATE_DIR=/app/state
     volumes:
       - "${HOST_STATE_DIR:-./state}:/app/state"
     # The job is intended to run and exit; use `docker compose run --rm coach-job` to execute manually
@@ -31,6 +33,7 @@ services:
       - .env
     environment:
       - RUN_MODE=cron
+      - STATE_DIR=/app/state
     volumes:
       - "${HOST_STATE_DIR:-./state}:/app/state"
     restart: unless-stopped

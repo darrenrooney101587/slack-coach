@@ -12,8 +12,8 @@ ENV POETRY_VERSION=1.8.0
 RUN curl -sSL https://install.python-poetry.org | python - --version $POETRY_VERSION
 ENV PATH="/root/.local/bin:$PATH"
 
-# Create a non-root user
-RUN useradd -m -r -s /bin/bash appuser
+# Create a non-root user with UID 1000 to match standard host users (e.g. ec2-user)
+RUN useradd -m -u 1000 -s /bin/bash appuser
 
 WORKDIR /app
 

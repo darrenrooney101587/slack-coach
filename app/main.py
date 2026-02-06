@@ -73,7 +73,8 @@ class SQLCoach:
         self.temperature = float(os.environ.get('TEMPERATURE', '0.4'))
         self.max_tokens = int(os.environ.get('MAX_TOKENS', '450'))
         self.dedupe_enabled = os.environ.get('DEDUPE_ENABLED', 'true').lower() == 'true'
-        self.state_dir = os.environ.get('STATE_DIR', '/state')
+        # Default to /app/state which is what docker-compose mounts from HOST_STATE_DIR
+        self.state_dir = os.environ.get('STATE_DIR', '/app/state')
         self.tz = os.environ.get('TZ', 'UTC')
         self.topic_mode = os.environ.get('TOPIC_MODE', 'rotation')
         self.curriculum_file = os.environ.get('CURRICULUM_FILE', '/app/curriculum.yml')
