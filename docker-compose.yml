@@ -29,7 +29,7 @@ services:
     container_name: slack_coach_cron
     env_file:
       - .env
-    environment:
+    environment:`
       - RUN_MODE=cron
       - STATE_DIR=/state
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
