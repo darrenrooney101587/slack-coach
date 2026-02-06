@@ -36,7 +36,7 @@ def _extract_meta_from_action(body):
 def _make_count_block(counts: dict):
     # Simple context block showing counts
     # Use unicode arrows to match button labels
-    text = f"⬆️ {counts.get('thumbs_up', 0)}   ⬇️ {counts.get('thumbs_down', 0)}  total: {counts.get('total', 0)}"
+    text = f"⬆️ {counts.get('thumbs_up', 0)}\n⬇️ {counts.get('thumbs_down', 0)}\nTotal: {counts.get('total', 0)}"
     return {
         "type": "context",
         "elements": [
