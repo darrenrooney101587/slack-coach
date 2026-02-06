@@ -66,6 +66,22 @@ Important env vars in `.env` (fill these in):
 - Optional: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` if you want to provide explicit credentials
 - `HOST_STATE_DIR` — host directory to persist `/app/state` (default `./state`)
 
+NOTE: Some Docker Compose installations require Buildx to perform an image build via `docker compose build`. If your environment shows an error like:
+
+```
+compose build requires buildx 0.17.0 or later
+```
+
+you can work around this by building the image locally with `docker build` and then using `docker compose up` (compose will use the pre-built image and won't attempt to build). Example:
+
+```bash
+# Build image locally (from repo root)
+docker build -t slack-coach:latest .
+
+# Then start the services with compose which will use the existing image
+docker compose up -d coach-server coach-cron
+```
+
 2. Build the Docker image with Compose (this uses the `Dockerfile` and Poetry inside the image):
 
 ```bash

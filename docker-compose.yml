@@ -1,10 +1,5 @@
-version: '3.8'
-
 services:
   coach-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: slack-coach:latest
     container_name: slack_coach_server
     env_file:
@@ -18,9 +13,6 @@ services:
     restart: unless-stopped
 
   coach-job:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: slack-coach:latest
     container_name: slack_coach_job
     env_file:
@@ -33,9 +25,6 @@ services:
     restart: "no"
 
   coach-cron:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: slack-coach:latest
     container_name: slack_coach_cron
     env_file:
