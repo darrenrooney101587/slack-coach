@@ -342,7 +342,7 @@ Output only the formatted message, no JSON wrapper."""
             topic = self.get_topic(seed=date_int)
             content = self.generate_content(topic)
 
-            self.post_to_slack(content)
+            self.post_to_slack(content, topic=topic)
 
             content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
             self.update_dedupe_state(today, content_hash)
