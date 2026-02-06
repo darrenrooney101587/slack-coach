@@ -5,6 +5,7 @@ description = ""
 authors = [
     {name = "darren.rooney",email = "darren.rooney101587@outlook.com"}
 ]
+package-mode = false
 readme = "README.md"
 requires-python = ">=3.10"
 
