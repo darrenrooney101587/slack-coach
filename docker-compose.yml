@@ -1,18 +1,6 @@
-services:
-  coach-server:
-    image: slack-coach:latest
-    container_name: slack_coach_server
-    env_file:
-      - .env
-    environment:
-      - RUN_MODE=server
-      - STATE_DIR=/app/state
-    ports:
-      - "8080:8080"
-    volumes:
-      - "${HOST_STATE_DIR:-./state}:/app/state"
-    restart: unless-stopped
+version: '3.9'
 
+services:
   coach-job:
     image: slack-coach:latest
     container_name: slack_coach_job
@@ -20,11 +8,21 @@ services:
       - .env
     environment:
       - RUN_MODE=job
-      - STATE_DIR=/app/state
+      - STATE_DIR=/state
+      # Slack and AWS credentials should be provided via .env or your CI secrets
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # If you want the accessory image to show next to the title, set a public HTTPS URL
+      # Example using your S3 object URL:
+      # - SLACK_COACH_IMAGE_URL=https://dev-ba-personal-dpr.s3.us-gov-east-1.amazonaws.com/slack_coach.png
+      - SLACK_COACH_IMAGE_URL=${SLACK_COACH_IMAGE_URL}
     volumes:
-      - "${HOST_STATE_DIR:-./state}:/app/state"
-    # The job is intended to run and exit; use `docker compose run --rm coach-job` to execute manually
+      - "${HOST_STATE_DIR:-./state}:/state:rw"
     restart: "no"
+    # Optionally run as host user to avoid permission issues (set UID/GID in your .env)
+    user: "${UID:-1000}:${GID:-1000}"
 
   coach-cron:
     image: slack-coach:latest
@@ -33,7 +31,37 @@ services:
       - .env
     environment:
       - RUN_MODE=cron
-      - STATE_DIR=/app/state
+      - STATE_DIR=/state
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # include image URL for scheduled posts too
+      - SLACK_COACH_IMAGE_URL=${SLACK_COACH_IMAGE_URL}
     volumes:
-      - "${HOST_STATE_DIR:-./state}:/app/state"
+      - "${HOST_STATE_DIR:-./state}:/state:rw"
     restart: unless-stopped
+    # Cron needs permission to write /var/run/crond.pid. Run as root by default but
+    # make this configurable via CRON_USER/CRON_GROUP in your .env (e.g. CRON_USER=0 CRON_GROUP=0)
+    user: "${CRON_USER:-0}:${CRON_GROUP:-0}"
+
+  coach-socket:
+    image: slack-coach:latest
+    container_name: slack_coach_socket
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=socket
+      - STATE_DIR=/state
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/state:rw"
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+
+# Notes:
+# - Do NOT commit .env with real tokens to source control. Put secrets in your deployment's secret manager
+# - The compose file mounts ./state on the host to /state inside the container (persistent state)
+# - If you prefer the container to create files as UID 1000, set UID=1000 and GID=1000 in your .env or shell

@@ -77,6 +77,10 @@ class SQLCoach:
         self.topic_mode = os.environ.get('TOPIC_MODE', 'rotation')
         self.curriculum_file = os.environ.get('CURRICULUM_FILE', '/app/curriculum.yml')
 
+        # Support for providing an image URL (preferred) via env var.
+        # We explicitly remove support for embedding huge base64 strings via env.
+        self.slack_coach_image_url = os.environ.get('SLACK_COACH_IMAGE_URL')
+
         # Ensure state dir is writable; fall back to a tmp directory if not.
         # If neither is writable, disable dedupe to avoid crashing on read-only filesystems.
         try:
@@ -264,7 +268,10 @@ Output only the formatted message, no JSON wrapper."""
     def post_to_slack(self, message: str, topic: str = None, message_id: str = None) -> None:
         """Posts the message to Slack."""
         full_message = f"*{self.title_prefix}*\n\n{message}"
+        logger.info(f"Posting to Slack in mode={self.slack_mode} channel={os.environ.get('SLACK_CHANNEL_ID')}")
 
+        # Note: This implementation no longer supports uploading a base64 image from an env var.
+        # If you want an accessory image include a public URL via SLACK_COACH_IMAGE_URL.
         if self.slack_mode == 'webhook':
             response = requests.post(
                 self.slack_webhook_url,
@@ -273,6 +280,7 @@ Output only the formatted message, no JSON wrapper."""
             response.raise_for_status()
 
         elif self.slack_mode == 'bot':
+
             headers = {
                 'Authorization': f'Bearer {self.slack_bot_token}',
                 'Content-Type': 'application/json'
@@ -286,23 +294,33 @@ Output only the formatted message, no JSON wrapper."""
             # Button values include metadata so the server can record who voted for which topic/date
             meta = json.dumps({'message_id': message_id, 'topic': topic, 'date': self._get_today_date()})
 
+            # Section with optional accessory image next to the title/message
+            first_section = {
+                'type': 'section',
+                'text': {'type': 'mrkdwn', 'text': full_message}
+            }
+            if self.slack_coach_image_url:
+                first_section['accessory'] = {
+                    'type': 'image',
+                    'image_url': self.slack_coach_image_url,
+                    'alt_text': 'Daily Postgres Coach'
+                }
+
             blocks = [
-                {
-                    'type': 'section',
-                    'text': {'type': 'mrkdwn', 'text': full_message}
-                },
+                first_section,
                 {
                     'type': 'actions',
                     'elements': [
                         {
                             'type': 'button',
-                            'text': {'type': 'plain_text', 'text': '👍'},
+                            # use emoji shortcodes for arrow up/down
+                            'text': {'type': 'plain_text', 'text': '⬆️'},
                             'action_id': 'thumbs_up',
                             'value': meta
                         },
                         {
                             'type': 'button',
-                            'text': {'type': 'plain_text', 'text': '👎'},
+                            'text': {'type': 'plain_text', 'text': '⬇️'},
                             'action_id': 'thumbs_down',
                             'value': meta
                         }
@@ -316,13 +334,20 @@ Output only the formatted message, no JSON wrapper."""
                 'text': self.title_prefix
             }
 
+            # Log payload and perform the post
+            logger.info(f"Slack payload: {json.dumps(payload)}")
             response = requests.post(
                 'https://slack.com/api/chat.postMessage',
                 headers=headers,
                 json=payload
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception:
+                logger.error(f"HTTP error from Slack: status={response.status_code} body={response.text}")
+                raise
             data = response.json()
+            logger.info(f"Slack API response: {json.dumps(data)}")
             if not data.get('ok'):
                 raise Exception(f"Slack API error: {data.get('error')}")
 

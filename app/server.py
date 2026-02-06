@@ -6,10 +6,13 @@ import hmac
 import hashlib
 from flask import Flask, request, jsonify, abort
 
+from votes import record_vote
+
 app = Flask(__name__)
 
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
-STATE_DIR = os.environ.get('STATE_DIR', '/state')
+# Default to /app/state to match container mounts
+STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
 
 if not SLACK_SIGNING_SECRET:
     print('Warning: SLACK_SIGNING_SECRET is not set. Incoming Slack requests will not be verified.', file=sys.stderr)
@@ -33,47 +36,11 @@ def verify_slack_request(req):
     return hmac.compare_digest(my_sig, slack_signature)
 
 
-def record_vote(vote_payload: dict):
-    os.makedirs(STATE_DIR, exist_ok=True)
-    votes_file = os.path.join(STATE_DIR, 'votes.json')
-
+def record_vote_payload(vote_payload: dict):
     try:
-        if os.path.exists(votes_file):
-            with open(votes_file, 'r') as f:
-                data = json.load(f)
-        else:
-            data = {}
-    except Exception:
-        data = {}
-
-    # Structure vote_payload: {message_id, topic, date, user_id, user_name, vote}
-    key = f"{vote_payload.get('message_id')}"
-    entry = data.get(key, {
-        'message_id': vote_payload.get('message_id'),
-        'topic': vote_payload.get('topic'),
-        'date': vote_payload.get('date'),
-        'votes': []
-    })
-    # prevent duplicate votes from same user for same message
-    existing = [v for v in entry['votes'] if v.get('user_id') == vote_payload.get('user_id')]
-    if existing:
-        # update existing vote
-        for v in entry['votes']:
-            if v.get('user_id') == vote_payload.get('user_id'):
-                v['vote'] = vote_payload.get('vote')
-                v['timestamp'] = int(time.time())
-    else:
-        entry['votes'].append({
-            'user_id': vote_payload.get('user_id'),
-            'user_name': vote_payload.get('user_name'),
-            'vote': vote_payload.get('vote'),
-            'timestamp': int(time.time())
-        })
-
-    data[key] = entry
-
-    with open(votes_file, 'w') as f:
-        json.dump(data, f, indent=2)
+        record_vote(vote_payload, STATE_DIR)
+    except Exception as e:
+        app.logger.error(f"Failed to record vote: {e}")
 
 
 @app.route('/slack/actions', methods=['POST'])
@@ -93,7 +60,6 @@ def slack_actions():
         return jsonify({'ok': False}), 400
 
     action = actions[0]
-    # We expect action['value'] to be JSON with message metadata
     try:
         meta = json.loads(action.get('value', '{}'))
     except Exception:
@@ -108,7 +74,7 @@ def slack_actions():
         'vote': action.get('action_id')  # 'thumbs_up' or 'thumbs_down'
     }
 
-    record_vote(vote_payload)
+    record_vote_payload(vote_payload)
 
     # Respond with an ephemeral confirmation
     return jsonify({
