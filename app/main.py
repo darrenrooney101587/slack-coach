@@ -627,10 +627,11 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
 
 if __name__ == "__main__":
     # 1. Postgres Coach (Default)
+    postgres_channel = os.environ.get("SLACK_CHANNEL_ID_VIEW") or os.environ.get("SLACK_CHANNEL_ID")
     postgres_coach = DailyCoach(
         job_name="postgres",
         topics=DEFAULT_TOPICS,
-        channel_id=os.environ.get("SLACK_CHANNEL_ID"),
+        channel_id=postgres_channel,
         role_prompt="You are an expert Postgres database administrator and educator.",
         title_prefix="Daily Postgres Coach"
     )
@@ -638,7 +639,7 @@ if __name__ == "__main__":
     if postgres_coach.slack_channel_id:
         postgres_coach.run()
     else:
-        logger.warning("SLACK_CHANNEL_ID not set; skipping Postgres Coach job.")
+        logger.warning("SLACK_CHANNEL_ID_VIEW (or SLACK_CHANNEL_ID) not set; skipping Postgres Coach job.")
 
     # 2. Data Engineering Coach
     de_channel = os.environ.get("SLACK_CHANNEL_ID_DATA_ENG")

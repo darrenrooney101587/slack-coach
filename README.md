@@ -55,12 +55,12 @@ Docker / Docker Compose (recommended for deployment)
 
 ```bash
 cp .env.example .env
-# edit .env (SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, SLACK_SIGNING_SECRET, AWS creds if needed)
+# edit .env (SLACK_BOT_TOKEN, SLACK_CHANNEL_ID_VIEW (or legacy SLACK_CHANNEL_ID), SLACK_SIGNING_SECRET, AWS creds if needed)
 ```
 
 Important env vars in `.env` (fill these in):
 - `SLACK_BOT_TOKEN` — bot user token (xoxb-...)
-- `SLACK_CHANNEL_ID` — channel id where the bot posts
+- `SLACK_CHANNEL_ID_VIEW` — channel id where the Postgres "view" (database) team posts. `SLACK_CHANNEL_ID` remains supported for backward compatibility.
 - `SLACK_SIGNING_SECRET` — used by the Flask receiver to verify Slack requests
 - `AWS_REGION`, `BEDROCK_MODEL_ID` — Bedrock model and region
 - Optional: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` if you want to provide explicit credentials
