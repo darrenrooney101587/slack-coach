@@ -76,6 +76,7 @@ def slack_actions():
         'message_id': meta.get('message_id') or data.get('container', {}).get('message_ts') or meta.get('ts'),
         'topic': meta.get('topic'),
         'job': meta.get('job'),  # Extract job/category for filtering
+        'channel': meta.get('channel') or data.get('container', {}).get('channel_id') or (data.get('message') or {}).get('channel'),
         'candidate': meta.get('candidate'),
         'date': meta.get('date'),
         'user_id': user.get('id'),

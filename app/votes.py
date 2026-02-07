@@ -23,6 +23,7 @@ def record_vote(payload: dict, state_dir: str):
         'message_id': payload.get('message_id'),
         'topic': payload.get('topic'),
         'job': payload.get('job'),
+        'channel': payload.get('channel'),
         'date': payload.get('date'),
         'votes': []
     })
@@ -143,7 +144,7 @@ def get_poll_details(key: str, candidates: list, state_dir: str):
     return result
 
 
-def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None):
+def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, channel_filter: str = None):
     """
     Finds the winning 'next topic' vote for a given date's message.
     The 'date' argument refers to the date the voting message was SENT (i.e., yesterday).
@@ -169,15 +170,23 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None):
     candidates_counts = {}
 
     for key, entry in data.items():
-        if entry.get('date') == date:
-            # If job_filter is provided (e.g. 'postgres'), verify this message belongs to that job
-            if job_filter and entry.get('job') != job_filter:
-                continue
+        # match by date
+        if entry.get('date') != date:
+            continue
 
-            for v in entry.get('votes', []):
-                if v.get('vote') == 'vote_next_topic' and v.get('candidate'):
-                    cand = v.get('candidate')
-                    candidates_counts[cand] = candidates_counts.get(cand, 0) + 1
+        # If job_filter is provided (e.g. 'postgres'), ensure message/job matches
+        if job_filter and entry.get('job') != job_filter:
+            continue
+
+        # If channel_filter provided, ensure entry's channel matches (if entry records channel)
+        if channel_filter and entry.get('channel') and entry.get('channel') != channel_filter:
+            continue
+
+        # Optionally also allow channel scope in the entry (if present)
+        for v in entry.get('votes', []):
+            if v.get('vote') == 'vote_next_topic' and v.get('candidate'):
+                cand = v.get('candidate')
+                candidates_counts[cand] = candidates_counts.get(cand, 0) + 1
 
     if not candidates_counts:
         return None

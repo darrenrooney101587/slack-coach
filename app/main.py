@@ -210,7 +210,19 @@ class DailyCoach:
         if not self.dedupe_enabled:
             return False
 
-        file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
+        # Use channel-specific dedupe file when possible to maintain idempotency per channel
+        channel_suffix = self.slack_channel_id or ''
+        if channel_suffix:
+            file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}_{channel_suffix}.json')
+        else:
+            file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
+
+        # Backward compatibility: only fall back to legacy if no channel was provided
+        if not channel_suffix:
+            legacy = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
+            if os.path.exists(legacy):
+                file_path = legacy
+                logger.info(f"Using legacy dedupe file: {file_path}")
 
         if os.path.exists(file_path):
             try:
@@ -229,7 +241,13 @@ class DailyCoach:
         if not self.dedupe_enabled:
             return
 
-        file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
+        # Persist dedupe per-channel when possible
+        channel_suffix = self.slack_channel_id or ''
+        if channel_suffix:
+            file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}_{channel_suffix}.json')
+        else:
+            file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
+
         data = {
             'last_sent_date': today,
             'last_message_hash': content_hash
@@ -257,7 +275,7 @@ class DailyCoach:
         # 1. Check for winning vote from yesterday (filtered by job_name)
         if check_votes and get_winning_next_topic:
             yesterday = self._get_date(days_offset=-1)
-            winner = get_winning_next_topic(yesterday, self.state_dir, job_filter=self.job_name)
+            winner = get_winning_next_topic(yesterday, self.state_dir, job_filter=self.job_name, channel_filter=self.slack_channel_id)
             if winner:
                 logger.info(f"[{self.job_name}] Using voted topic winner from {yesterday}: {winner}")
                 return winner
@@ -392,6 +410,7 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
             'message_id': message_id,
             'topic': topic,
             'job': self.job_name,
+            'channel': self.slack_channel_id,
             'date': self._get_today_date()
         })
 
