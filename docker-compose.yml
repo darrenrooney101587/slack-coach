@@ -1,29 +1,29 @@
 version: '3.9'
 
 services:
-  coach-job:
-    build: .
-    image: slack-coach:latest
-    container_name: slack_coach_job
-    env_file:
-      - .env
-    environment:
-      - RUN_MODE=job
-      - STATE_DIR=/state
-      # Slack and AWS credentials should be provided via .env or your CI secrets
-      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      # If you want the accessory image to show next to the title, set a public HTTPS URL
-      # Example using your S3 object URL:
-      # - SLACK_COACH_IMAGE_URL=https://dev-ba-personal-dpr.s3.us-gov-east-1.amazonaws.com/slack_coach.png
-      - SLACK_COACH_IMAGE_URL=${SLACK_COACH_IMAGE_URL}
-    volumes:
-      - "${HOST_STATE_DIR:-./state}:/state:rw"
-    restart: "no"
-    # Optionally run as host user to avoid permission issues (set UID/GID in your .env)
-    user: "${UID:-1000}:${GID:-1000}"
+#  coach-job:
+#    build: .
+#    image: slack-coach:latest
+#    container_name: slack_coach_job
+#    env_file:
+#      - .env
+#    environment:
+#      - RUN_MODE=job
+#      - STATE_DIR=/state
+#      # Slack and AWS credentials should be provided via .env or your CI secrets
+#      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+#      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+#      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+#      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+#      # If you want the accessory image to show next to the title, set a public HTTPS URL
+#      # Example using your S3 object URL:
+#      # - SLACK_COACH_IMAGE_URL=https://dev-ba-personal-dpr.s3.us-gov-east-1.amazonaws.com/slack_coach.png
+#      - SLACK_COACH_IMAGE_URL=${SLACK_COACH_IMAGE_URL}
+#    volumes:
+#      - "${HOST_STATE_DIR:-./state}:/state:rw"
+#    restart: "no"
+#    # Optionally run as host user to avoid permission issues (set UID/GID in your .env)
+#    user: "${UID:-1000}:${GID:-1000}"
 
   coach-cron:
     build: .
