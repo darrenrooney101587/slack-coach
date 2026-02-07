@@ -241,6 +241,14 @@ class SQLCoach:
 
     def generate_content(self, topic: str) -> dict:
         """Calls Bedrock to generate the content."""
+        # Short-circuit for local testing: if DRY_RUN=1 or SLACK_DRY_RUN=1, return a canned payload
+        if os.environ.get('DRY_RUN') == '1' or os.environ.get('SLACK_DRY_RUN') == '1':
+            logger.info('DRY_RUN detected: returning canned content without invoking Bedrock')
+            return {
+                "text": f"*{topic}*\n\n• This is a DRY RUN sample message for topic `{topic}`.\n• No external APIs were called.\n\nExample:\n```sql\n-- Sample SQL snippet\nSELECT 1;\n```\n\nImpact: This is a local test run.",
+                "resource_url": "https://www.postgresql.org/docs/current/"
+            }
+
         prompt = f"""You are an expert Postgres database administrator and educator.
 Create a professional "Daily SQL Coach" tip about: "{topic}".
 

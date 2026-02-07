@@ -4,8 +4,28 @@ set -euo pipefail
 # CRON_SCHEDULE default: run daily at 09:00 UTC
 CRON_SCHEDULE=${CRON_SCHEDULE:-0 9 * * *}
 
-# The command to run - use docker path to python
-CMD=${CRON_CMD:-"python -m app.main"}
+# The command to run - prefer python if available, fall back to python3
+if [ -z "${CRON_CMD:-}" ]; then
+  if command -v python >/dev/null 2>&1; then
+    CMD_DEFAULT="python -m app.main"
+  elif command -v python3 >/dev/null 2>&1; then
+    CMD_DEFAULT="python3 -m app.main"
+  else
+    # Last resort: keep the generic python command; cron will log an error if missing
+    CMD_DEFAULT="python -m app.main"
+  fi
+  CMD=${CRON_CMD:-"${CMD_DEFAULT}"}
+else
+  CMD=${CRON_CMD}
+fi
+
+# Sanitize CMD: remove any explicit shell redirects so we can force logs to /proc/1/fd/1
+# This removes occurrences of '>', '>>', and '2>&1' and their following targets.
+CMD_SANITIZED=$(echo "${CMD}" | sed -E 's/\s*(2>&1|>\>\s*[^ ]+|>\s*[^ ]+)\s*//g')
+if [ "${CMD_SANITIZED}" != "${CMD}" ]; then
+  echo "[cron-runner] Warning: CRON_CMD contained shell redirection; stripped redirects to ensure output goes to container stdout" >> /proc/1/fd/1 2>&1 || true
+  CMD=${CMD_SANITIZED}
+fi
 
 # Log to container stdout (PID 1 fd 1) so it shows in docker logs
 LOGFILE=/proc/1/fd/1
