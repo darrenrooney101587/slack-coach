@@ -38,5 +38,6 @@ elif [ "$RUN_MODE" = "socket" ]; then
   exec python -m app.socket_server
 else
   echo "Starting SQL coach job runner"
-  exec python -m app.main
+  # Forward arguments (if any) so we can run e.g. `python -m app.main --view`
+  exec python -m app.main "$@"
 fi

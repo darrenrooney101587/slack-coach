@@ -626,29 +626,44 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
             sys.exit(1)
 
 if __name__ == "__main__":
-    # 1. Postgres Coach (Default)
-    postgres_channel = os.environ.get("SLACK_CHANNEL_ID_VIEW") or os.environ.get("SLACK_CHANNEL_ID")
-    postgres_coach = DailyCoach(
-        job_name="postgres",
-        topics=DEFAULT_TOPICS,
-        channel_id=postgres_channel,
-        role_prompt="You are an expert Postgres database administrator and educator.",
-        title_prefix="Daily Postgres Coach"
-    )
-    # Run if channel is configured
-    if postgres_coach.slack_channel_id:
-        postgres_coach.run()
-    else:
-        logger.warning("SLACK_CHANNEL_ID_VIEW (or SLACK_CHANNEL_ID) not set; skipping Postgres Coach job.")
+    import argparse
 
-    # 2. Data Engineering Coach
-    de_channel = os.environ.get("SLACK_CHANNEL_ID_DATA_ENG")
-    if de_channel:
-        de_coach = DailyCoach(
-            job_name="data_engineering",
-            topics=DATA_ENGINEERING_TOPICS,
-            channel_id=de_channel,
-            role_prompt="You are an expert Data Engineer and educator.",
-            title_prefix="Daily Data Engineering Coach"
+    parser = argparse.ArgumentParser(description='Run DailyCoach jobs')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--view', action='store_true', help='Run only the Postgres (view) coach')
+    group.add_argument('--data-engineering', action='store_true', help='Run only the Data Engineering coach')
+    group.add_argument('--all', action='store_true', help='Run all configured coaches (default if no flag)')
+    args = parser.parse_args()
+
+    run_view = args.view or (not args.data_engineering and not args.all and not args.view)
+    run_de = args.data_engineering or args.all or (not any([args.view, args.data_engineering, args.all]))
+
+    # Postgres Coach (View)
+    if run_view:
+        postgres_channel = os.environ.get("SLACK_CHANNEL_ID_VIEW") or os.environ.get("SLACK_CHANNEL_ID")
+        postgres_coach = DailyCoach(
+            job_name="postgres",
+            topics=DEFAULT_TOPICS,
+            channel_id=postgres_channel,
+            role_prompt="You are an expert Postgres database administrator and educator.",
+            title_prefix="Daily Postgres Coach"
         )
-        de_coach.run()
+        if postgres_coach.slack_channel_id:
+            postgres_coach.run()
+        else:
+            logger.warning("SLACK_CHANNEL_ID_VIEW (or SLACK_CHANNEL_ID) not set; skipping Postgres Coach job.")
+
+    # Data Engineering Coach
+    if run_de:
+        de_channel = os.environ.get("SLACK_CHANNEL_ID_DATA_ENG")
+        if de_channel:
+            de_coach = DailyCoach(
+                job_name="data_engineering",
+                topics=DATA_ENGINEERING_TOPICS,
+                channel_id=de_channel,
+                role_prompt="You are an expert Data Engineer and educator.",
+                title_prefix="Daily Data Engineering Coach"
+            )
+            de_coach.run()
+        else:
+            logger.info("SLACK_CHANNEL_ID_DATA_ENG not set; skipping Data Engineering Coach job.")
