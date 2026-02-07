@@ -22,6 +22,7 @@ def record_vote(payload: dict, state_dir: str):
     entry = data.get(key, {
         'message_id': payload.get('message_id'),
         'topic': payload.get('topic'),
+        'job': payload.get('job'),
         'date': payload.get('date'),
         'votes': []
     })
@@ -142,10 +143,11 @@ def get_poll_details(key: str, candidates: list, state_dir: str):
     return result
 
 
-def get_winning_next_topic(date: str, state_dir: str):
+def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None):
     """
     Finds the winning 'next topic' vote for a given date's message.
     The 'date' argument refers to the date the voting message was SENT (i.e., yesterday).
+    Optional job_filter ensures we only count votes for the specific coach job (Postgres vs DataEng).
     """
     votes_file = os.path.join(state_dir, 'votes.json')
     try:
@@ -168,6 +170,10 @@ def get_winning_next_topic(date: str, state_dir: str):
 
     for key, entry in data.items():
         if entry.get('date') == date:
+            # If job_filter is provided (e.g. 'postgres'), verify this message belongs to that job
+            if job_filter and entry.get('job') != job_filter:
+                continue
+
             for v in entry.get('votes', []):
                 if v.get('vote') == 'vote_next_topic' and v.get('candidate'):
                     cand = v.get('candidate')

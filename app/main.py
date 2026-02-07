@@ -83,8 +83,35 @@ DEFAULT_TOPICS = [
     "choosing the right data types for storage and speed"
 ]
 
-class SQLCoach:
-    def __init__(self) -> None:
+DATA_ENGINEERING_TOPICS = [
+    "Parquet vs ORC vs Avro storage formats",
+    "Data Lake vs Data Warehouse vs Lakehouse",
+    "Idempotency in data pipelines",
+    "SCD Type 1 vs Type 2 implementations",
+    "Partitioning strategies in Spark/Iceberg",
+    "Airflow DAG best practices and anti-patterns",
+    "Checkpointing and state management in streaming",
+    "Backfilling strategies for historical data",
+    "Data Quality checks (Great Expectations/dbt tests)",
+    "Data Lineage and impact analysis",
+    "Columnar vs Row-oriented storage benefits",
+    "MapReduce paradigm and shuffle operations",
+    "Serializability and isolation levels in distributed systems",
+    "CAP theorem trade-offs involved in data systems",
+    "Modern Data Stack tool selection (dbt, Snowflake, etc)",
+    "Schema evolution and backward compatibility",
+    "Z-ordering and data skipping optimization",
+    "Compaction and small file problems"
+]
+
+class DailyCoach:
+    def __init__(self, job_name: str, topics: list, channel_id: str, role_prompt: str, title_prefix: str) -> None:
+        self.job_name = job_name
+        self.topics = topics
+        self.slack_channel_id = channel_id
+        self.role_prompt = role_prompt
+        self.title_prefix = title_prefix
+
         # Required Env Vars
         self.aws_region = os.environ.get('AWS_REGION')
         self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID')
@@ -100,19 +127,17 @@ class SQLCoach:
                 raise ValueError("SLACK_WEBHOOK_URL required for webhook mode")
         elif self.slack_mode == 'bot':
             self.slack_bot_token = os.environ.get('SLACK_BOT_TOKEN')
-            self.slack_channel_id = os.environ.get('SLACK_CHANNEL_ID')
             if not self.slack_bot_token or not self.slack_channel_id:
-                raise ValueError("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID required for bot mode")
+                raise ValueError("SLACK_BOT_TOKEN and valid Channel ID required for bot mode")
         else:
             raise ValueError("Invalid SLACK_MODE. Must be 'webhook' or 'bot'")
 
         # Optional Env Vars
-        self.title_prefix = os.environ.get('TITLE_PREFIX', 'Daily Postgres Coach')
         self.temperature = float(os.environ.get('TEMPERATURE', '0.4'))
         self.max_tokens = int(os.environ.get('MAX_TOKENS', '450'))
         self.dedupe_enabled = os.environ.get('DEDUPE_ENABLED', 'true').lower() == 'true'
         # Short subtitle shown under the header as small grey text; configurable per deployment
-        self.title_subtitle = os.environ.get('TITLE_SUBTITLE', 'Concise daily Postgres performance tips and practical examples for this channel.')
+        self.title_subtitle = os.environ.get('TITLE_SUBTITLE', 'Concise daily performance tips and practical examples.')
         # Default to /app/state which is what docker-compose mounts from HOST_STATE_DIR
         self.state_dir = os.environ.get('STATE_DIR', '/app/state')
         self.tz = os.environ.get('TZ', 'UTC')
@@ -185,14 +210,14 @@ class SQLCoach:
         if not self.dedupe_enabled:
             return False
 
-        file_path = os.path.join(self.state_dir, 'last_sent.json')
+        file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
 
         if os.path.exists(file_path):
             try:
                 with open(file_path, 'r') as f:
                     data = json.load(f)
                     if data.get('last_sent_date') == today:
-                        logger.info(f"Message already sent for date: {today}. Skipping.")
+                        logger.info(f"[{self.job_name}] Message already sent for date: {today}. Skipping.")
                         return True
             except Exception as e:
                 logger.warning(f"Failed to read lock file: {e}")
@@ -200,11 +225,11 @@ class SQLCoach:
         return False
 
     def update_dedupe_state(self, today: str, content_hash: str) -> None:
-        """Updates the last_sent.json file."""
+        """Updates the last_sent_{job}.json file."""
         if not self.dedupe_enabled:
             return
 
-        file_path = os.path.join(self.state_dir, 'last_sent.json')
+        file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
         data = {
             'last_sent_date': today,
             'last_message_hash': content_hash
@@ -212,64 +237,37 @@ class SQLCoach:
         try:
             with open(file_path, 'w') as f:
                 json.dump(data, f)
-            logger.info("Updated dedupe state.")
+            logger.info(f"[{self.job_name}] Updated dedupe state.")
         except Exception as e:
             logger.error(f"Failed to update lock file: {e}")
 
     def get_next_topic_candidates(self, current_topic: str) -> list:
         """Selects 3 random topics excluding the current one."""
-        # Retrieve pool of topics (similar to get_topic but we just want the list)
-        if self.topic_mode == 'curated' and os.path.exists(self.curriculum_file):
-            try:
-                import yaml
-                with open(self.curriculum_file, 'r') as f:
-                    data = yaml.safe_load(f)
-                    topics = data.get('topics', DEFAULT_TOPICS)
-            except Exception:
-                topics = DEFAULT_TOPICS
-        else:
-            topics = DEFAULT_TOPICS
-
-        # Filter out current
-        pool = [t for t in topics if t != current_topic]
+        # Retrieve pool of topics (uses self.topics injected in init)
+        pool = [t for t in self.topics if t != current_topic]
 
         # Select 3 unique
-        # We use a random seed based on today + salt to ensure consistent candidates for a re-run on same day
-        # but different from topic selection seed
-        seed = int(time.time()) # Actually, for candidates, random is fine as long as it's fresh
-        # But if we want it deterministic per day, use date.
-        # Let's just use random.sample
+        seed = int(time.time())
         count = min(3, len(pool))
         return random.sample(pool, count)
 
     def get_topic(self, date_seed: int, check_votes: bool = True) -> str:
         """Selects a topic based on votes or random seed."""
 
-        # 1. Check for winning vote from yesterday
+        # 1. Check for winning vote from yesterday (filtered by job_name)
         if check_votes and get_winning_next_topic:
             yesterday = self._get_date(days_offset=-1)
-            winner = get_winning_next_topic(yesterday, self.state_dir)
+            winner = get_winning_next_topic(yesterday, self.state_dir, job_filter=self.job_name)
             if winner:
-                logger.info(f"Using voted topic winner from {yesterday}: {winner}")
+                logger.info(f"[{self.job_name}] Using voted topic winner from {yesterday}: {winner}")
                 return winner
 
-        # 2. Fallback to standard selection
-        # Retrieve topic list
-        if self.topic_mode == 'curated' and os.path.exists(self.curriculum_file):
-            try:
-                import yaml
-                with open(self.curriculum_file, 'r') as f:
-                    data = yaml.safe_load(f)
-                    topics = data.get('topics', DEFAULT_TOPICS)
-            except Exception as e:
-                logger.warning(f"Failed to load curriculum file: {e}. using defaults.")
-                topics = DEFAULT_TOPICS
-        else:
-            topics = DEFAULT_TOPICS
+        # 2. Fallback to standard selection from self.topics
+        logger.info(f"[{self.job_name}] selecting random topic from list of {len(self.topics)} items.")
 
         # Use deterministic random based on seed
         random.seed(date_seed)
-        return random.choice(topics)
+        return random.choice(self.topics)
 
     def generate_content(self, topic: str) -> dict:
         """Calls Bedrock to generate the content."""
@@ -277,17 +275,17 @@ class SQLCoach:
         if os.environ.get('DRY_RUN') == '1' or os.environ.get('SLACK_DRY_RUN') == '1':
             logger.info('DRY_RUN detected: returning canned content without invoking Bedrock')
             return {
-                "text": f"*{topic}*\n\n• This is a DRY RUN sample message for topic `{topic}`.\n• No external APIs were called.\n\nExample:\n```sql\n-- Sample SQL snippet\nSELECT 1;\n```\n\nImpact: This is a local test run.",
+                "text": f"*{topic}*\n\n• This is a DRY RUN sample message for topic `{topic}`.\n• No external APIs were called.\n\nExample:\n```sql\n-- Sample code\n-- Job: {self.job_name}\n```\n\nImpact: This is a local test run.",
                 "resource_url": "https://www.postgresql.org/docs/current/"
             }
 
-        prompt = f"""You are an expert Postgres database administrator and educator.
-Create a professional "Daily SQL Coach" tip about: "{topic}".
+        prompt = f"""{self.role_prompt}
+Create a professional "{self.title_prefix}" tip about: "{topic}".
 
 Structure for the message body:
 *Topic Header*: Brief, professional one-line description of the concept (Bold, no "Topic:" prefix)
 *Key Insights*: 2-3 concise, high-impact bullet points using '•' character
-*Example*: Clean SQL code snippet (5-15 lines) with inline comments
+*Example*: Clean code snippet (5-15 lines) with inline comments (SQL or Python/etc appropriate for the topic)
 *Impact*: One clear sentence explaining the business/performance value
 
 Guidelines:
@@ -295,15 +293,15 @@ Guidelines:
 - Be precise and technical, avoid generic statements
 - Use professional tone suitable for senior engineers
 - Format for Slack: *bold* for headers, `inline code`, ```code blocks```
-- Use `code` styling (backticks) for SQL keywords, technical terms, and configuration parameters to highlight them
+- Use `code` styling (backticks) for keywords, technical terms, and configuration parameters
 - Keep total length under 1200 characters
-- Never suggest destructive operations (DROP/DELETE/TRUNCATE)
+- Never suggest destructive operations
 - Focus on practical, immediately applicable knowledge
 
 Output valid JSON with the following schema:
 {{
   "text": "The formatted message string as per Structure guidelines",
-  "resource_url": "A direct URL to the official PostgreSQL documentation regarding the topic. If specific docs aren't found, link to the general index."
+  "resource_url": "A direct URL to the official documentation regarding the topic. If specific docs aren't found, link to the general index."
 }}
 Do not include markdown formatting (like ```json) in the response. Output raw JSON only."""
 
@@ -383,14 +381,19 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
     def post_to_slack(self, message: str, topic: str = None, message_id: str = None, candidates: list = None, resource_url: str = None) -> None:
         """Posts the message to Slack."""
         full_message = f"*{self.title_prefix}*\n\n{message}"
-        logger.info(f"Posting to Slack in mode={self.slack_mode} channel={os.environ.get('SLACK_CHANNEL_ID')}")
+        logger.info(f"Posting to Slack in mode={self.slack_mode} channel={self.slack_channel_id}")
 
         # Ensure we have a message_id to include in metadata
         if not message_id:
             message_id = str(int(time.time() * 1000))
 
         # Shared metadata for buttons
-        meta = json.dumps({'message_id': message_id, 'topic': topic, 'date': self._get_today_date()})
+        meta = json.dumps({
+            'message_id': message_id,
+            'topic': topic,
+            'job': self.job_name,
+            'date': self._get_today_date()
+        })
 
         # Note: This implementation no longer supports uploading a base64 image from an env var.
         # If you want an accessory image include a public URL via SLACK_COACH_IMAGE_URL.
@@ -422,6 +425,7 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                     cand_meta = json.dumps({
                         'message_id': message_id,
                         'topic': topic,
+                        'job': self.job_name,
                         'date': self._get_today_date(),
                         'candidate': cand
                     })
@@ -622,5 +626,28 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
             sys.exit(1)
 
 if __name__ == "__main__":
-    coach = SQLCoach()
-    coach.run()
+    # 1. Postgres Coach (Default)
+    postgres_coach = DailyCoach(
+        job_name="postgres",
+        topics=DEFAULT_TOPICS,
+        channel_id=os.environ.get("SLACK_CHANNEL_ID"),
+        role_prompt="You are an expert Postgres database administrator and educator.",
+        title_prefix="Daily Postgres Coach"
+    )
+    # Run if channel is configured
+    if postgres_coach.slack_channel_id:
+        postgres_coach.run()
+    else:
+        logger.warning("SLACK_CHANNEL_ID not set; skipping Postgres Coach job.")
+
+    # 2. Data Engineering Coach
+    de_channel = os.environ.get("SLACK_CHANNEL_ID_DATA_ENG")
+    if de_channel:
+        de_coach = DailyCoach(
+            job_name="data_engineering",
+            topics=DATA_ENGINEERING_TOPICS,
+            channel_id=de_channel,
+            role_prompt="You are an expert Data Engineer and educator.",
+            title_prefix="Daily Data Engineering Coach"
+        )
+        de_coach.run()

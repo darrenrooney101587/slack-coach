@@ -75,6 +75,7 @@ def slack_actions():
     vote_payload = {
         'message_id': meta.get('message_id') or data.get('container', {}).get('message_ts') or meta.get('ts'),
         'topic': meta.get('topic'),
+        'job': meta.get('job'),  # Extract job/category for filtering
         'candidate': meta.get('candidate'),
         'date': meta.get('date'),
         'user_id': user.get('id'),

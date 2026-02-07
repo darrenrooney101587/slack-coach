@@ -7,7 +7,7 @@ import sys
 # Add app to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from app.main import SQLCoach
+from app.main import DailyCoach
 
 @pytest.fixture
 def mock_env(monkeypatch):
@@ -17,19 +17,29 @@ def mock_env(monkeypatch):
     monkeypatch.setenv("SLACK_MODE", "webhook")
     monkeypatch.setenv("STATE_DIR", "/tmp/test_state")
 
-def test_init_raises_without_env(monkeypatch):
+@pytest.fixture
+def coach_args():
+    return {
+        "job_name": "test_job",
+        "topics": ["topic1", "topic2"],
+        "channel_id": "C123",
+        "role_prompt": "You are a tester.",
+        "title_prefix": "Test Coach"
+    }
+
+def test_init_raises_without_env(monkeypatch, coach_args):
     monkeypatch.delenv("AWS_REGION", raising=False)
     with pytest.raises(ValueError, match="Missing AWS_REGION"):
-        SQLCoach()
+        DailyCoach(**coach_args)
 
-def test_init_success(mock_env):
-    coach = SQLCoach()
+def test_init_success(mock_env, coach_args):
+    coach = DailyCoach(**coach_args)
     assert coach.aws_region == "us-east-1"
     assert coach.slack_mode == "webhook"
 
 @patch('app.main.boto3.client')
-def test_generate_content_success(mock_boto, mock_env):
-    coach = SQLCoach()
+def test_generate_content_success(mock_boto, mock_env, coach_args):
+    coach = DailyCoach(**coach_args)
 
     mock_response = {
         'body': MagicMock(read=lambda: json.dumps({
@@ -46,8 +56,8 @@ def test_generate_content_success(mock_boto, mock_env):
     assert result['resource_url'] == 'http://example.com'
 
 @patch('app.main.requests.post')
-def test_post_to_slack_webhook(mock_post, mock_env):
-    coach = SQLCoach()
+def test_post_to_slack_webhook(mock_post, mock_env, coach_args):
+    coach = DailyCoach(**coach_args)
     coach.post_to_slack("My message", topic="test", message_id="123")
 
     args, kwargs = mock_post.call_args
@@ -55,9 +65,9 @@ def test_post_to_slack_webhook(mock_post, mock_env):
     payload = kwargs['json']
     assert "My message" in str(payload)
 
-def test_dedupe_check(mock_env, monkeypatch):
+def test_dedupe_check(mock_env, monkeypatch, coach_args):
     monkeypatch.setenv("DEDUPE_ENABLED", "true")
-    coach = SQLCoach()
+    coach = DailyCoach(**coach_args)
 
     # Mocking file existence and open
     with patch("os.path.exists", return_value=True), \
@@ -69,16 +79,16 @@ def test_dedupe_check(mock_env, monkeypatch):
         is_dupe = coach.check_dedupe("2026-02-08")
         assert is_dupe is False
 
-@patch('app.main.SQLCoach.post_to_slack')
-@patch('app.main.SQLCoach.generate_content')
-@patch('app.main.SQLCoach.get_topic')
-@patch('app.main.SQLCoach.check_dedupe')
-def test_run_flow(mock_dedupe, mock_get_topic, mock_gen, mock_post, mock_env):
+@patch('app.main.DailyCoach.post_to_slack')
+@patch('app.main.DailyCoach.generate_content')
+@patch('app.main.DailyCoach.get_topic')
+@patch('app.main.DailyCoach.check_dedupe')
+def test_run_flow(mock_dedupe, mock_get_topic, mock_gen, mock_post, mock_env, coach_args):
     mock_dedupe.return_value = False
     mock_get_topic.return_value = "Test Topic"
     mock_gen.return_value = {"text": "Content", "resource_url": "url"}
 
-    coach = SQLCoach()
+    coach = DailyCoach(**coach_args)
     # Mock update_dedupe_state to avoid writing to disk
     with patch.object(coach, 'update_dedupe_state'):
          coach.run()
