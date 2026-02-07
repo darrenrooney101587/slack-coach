@@ -48,7 +48,39 @@ DEFAULT_TOPICS = [
     "Postgres lock monitoring",
     "Autovacuum tuning",
     "Partitioning strategies",
-    "Lateral joins"
+    "Lateral joins",
+
+    # Additional expanded topics
+    "multi-column index ordering and selectivity",
+    "covering indexes and INCLUDE columns",
+    "b-tree vs hash vs gin vs gist index tradeoffs",
+    "expression indexes for computed columns",
+    "constraint exclusion and partition pruning",
+    "parallel query planning and tuning",
+    "planner statistics_target and histogram selection",
+    "VACUUM FREEZE and bloat mitigation",
+    "write amplification and fillfactor",
+    "checkpoint tuning and wal settings",
+    "replication: logical vs physical",
+    "hot standby and read-scaling patterns",
+    "materialized views and refresh strategies",
+    "prepared statements and plan stability",
+    "statement timeouts and resource guards",
+    "temp file usage and work_mem diagnostics",
+    "background writer and maintenance_work_mem",
+    "connection/statement pooling (pgbouncer) modes",
+    "monitoring with pg_stat_activity and pg_stat_statements",
+    "query parallelism pitfalls (too many workers)",
+    "declarative partitioning best practices",
+    "brin index tuning for append-only workloads",
+    "foreign data wrappers and pushdown limitations",
+    "optimizing bulk loads (COPY, WAL settings)",
+    "hot updates vs HOT chains and preventing bloat",
+    "using EXCLUDE indexes for uniqueness with ranges",
+    "optimizing ORDER BY with indexes",
+    "reducing locking in high-concurrency updates",
+    "effective use of ANALYZE and autoanalyze thresholds",
+    "choosing the right data types for storage and speed"
 ]
 
 class SQLCoach:
