@@ -35,10 +35,11 @@ def _extract_meta_from_action(body):
 
 
 def _get_user_image(client, user_id):
+    """Fetch user image with error handling and timeout."""
     try:
         resp = client.users_info(user=user_id)
         if resp.get('ok'):
-            return resp['user']['profile'].get('image_48') # 48x48 is standard for context blocks
+            return resp['user']['profile'].get('image_48')  # 48x48 is standard for context blocks
     except Exception as e:
         logger.warning(f"Failed to fetch user info for {user_id}: {e}")
     return None
@@ -89,12 +90,16 @@ def _make_poll_context_block(details: dict):
 
 @app.action('thumbs_up')
 def handle_thumbs_up(ack, body, client, logger):
+    # Acknowledge immediately to prevent timeout
     ack()
+    
     user = body.get('user', {})
     user_id = user.get('id')
-    user_image = _get_user_image(client, user_id)
-
+    
+    # Extract metadata first (fast operation)
     meta = _extract_meta_from_action(body)
+    
+    # Record vote immediately (don't wait for user image)
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
@@ -103,13 +108,28 @@ def handle_thumbs_up(ack, body, client, logger):
         'date': meta.get('date') if meta else None,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
-        'user_image': user_image,
+        'user_image': None,  # Will be fetched separately
         'vote': 'thumbs_up'
     }
-    record_vote(payload, STATE_DIR)
-    logger.info(f"Recorded thumbs_up for {payload}")
+    
+    try:
+        record_vote(payload, STATE_DIR)
+        logger.info(f"Recorded thumbs_up from user {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to record thumbs_up: {e}")
+        return  # Exit early if we can't record the vote
+    
+    # Fetch user image asynchronously (non-critical)
+    user_image = _get_user_image(client, user_id)
+    if user_image:
+        # Update the vote record with user image
+        payload['user_image'] = user_image
+        try:
+            record_vote(payload, STATE_DIR)
+        except Exception as e:
+            logger.warning(f"Failed to update vote with user_image: {e}")
 
-    # Update the buttons to show acknowledgement
+    # Update the button UI to show acknowledgement
     try:
         if body.get('message'):
             blocks = body['message'].get('blocks', [])
@@ -118,29 +138,32 @@ def handle_thumbs_up(ack, body, client, logger):
                 if block['type'] == 'actions':
                     for element in block.get('elements', []):
                         if element.get('action_id') == 'thumbs_up':
-                            element['text']['text'] = 'Helpful   :white_check_mark:'
+                            element['text']['text'] = 'Helpful   ✓'
                         elif element.get('action_id') == 'thumbs_down':
-                            # Reset the other one if needed, or keep as is
-                            element['text']['text'] = 'Not Helpful   :thumbsdown:'
+                            element['text']['text'] = 'Not Helpful   👎'
 
                     # Update the message
                     channel_id = body.get('channel', {}).get('id')
                     ts = body.get('message', {}).get('ts')
                     if channel_id and ts:
                         client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+                        logger.info(f"Updated button UI for message {ts}")
                     break
     except Exception as e:
-        logger.error(f"Failed to update message buttons: {e}")
-
+        logger.error(f"Failed to update message buttons: {e}", exc_info=True)
 
 @app.action('thumbs_down')
 def handle_thumbs_down(ack, body, client, logger):
+    # Acknowledge immediately to prevent timeout
     ack()
+    
     user = body.get('user', {})
     user_id = user.get('id')
-    user_image = _get_user_image(client, user_id)
-
+    
+    # Extract metadata first (fast operation)
     meta = _extract_meta_from_action(body)
+    
+    # Record vote immediately (don't wait for user image)
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
@@ -149,13 +172,28 @@ def handle_thumbs_down(ack, body, client, logger):
         'date': meta.get('date') if meta else None,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
-        'user_image': user_image,
+        'user_image': None,  # Will be fetched separately
         'vote': 'thumbs_down'
     }
-    record_vote(payload, STATE_DIR)
-    logger.info(f"Recorded thumbs_down for {payload}")
+    
+    try:
+        record_vote(payload, STATE_DIR)
+        logger.info(f"Recorded thumbs_down from user {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to record thumbs_down: {e}")
+        return  # Exit early if we can't record the vote
+    
+    # Fetch user image asynchronously (non-critical)
+    user_image = _get_user_image(client, user_id)
+    if user_image:
+        # Update the vote record with user image
+        payload['user_image'] = user_image
+        try:
+            record_vote(payload, STATE_DIR)
+        except Exception as e:
+            logger.warning(f"Failed to update vote with user_image: {e}")
 
-    # Update the buttons to show acknowledgement
+    # Update the button UI to show acknowledgement
     try:
         if body.get('message'):
             blocks = body['message'].get('blocks', [])
@@ -163,30 +201,32 @@ def handle_thumbs_down(ack, body, client, logger):
                 if block['type'] == 'actions':
                     for element in block.get('elements', []):
                         if element.get('action_id') == 'thumbs_down':
-                            element['text']['text'] = 'Not Helpful   :white_check_mark:'
+                            element['text']['text'] = 'Not Helpful   ✓'
                         elif element.get('action_id') == 'thumbs_up':
-                            element['text']['text'] = 'Helpful   :thumbsup:'
+                            element['text']['text'] = 'Helpful   👍'
 
                     channel_id = body.get('channel', {}).get('id')
                     ts = body.get('message', {}).get('ts')
                     if channel_id and ts:
                         client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+                        logger.info(f"Updated button UI for message {ts}")
                     break
     except Exception as e:
-        logger.error(f"Failed to update message buttons: {e}")
-
+        logger.error(f"Failed to update message buttons: {e}", exc_info=True)
 
 @app.action(re.compile("vote_next_topic_\d+"))
 def handle_vote_next_topic(ack, body, client, logger):
+    # Acknowledge immediately to prevent timeout
     ack()
+    
     user = body.get('user', {})
     user_id = user.get('id')
-    user_image = _get_user_image(client, user_id)
-    action_id = body['actions'][0]['action_id'] # e.g. vote_next_topic_0
+    action_id = body['actions'][0]['action_id']  # e.g. vote_next_topic_0
 
     meta = _extract_meta_from_action(body)
-    candidate = meta.get('candidate')
+    candidate = meta.get('candidate') if meta else None
 
+    # Record vote immediately (don't wait for user image)
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
@@ -196,70 +236,91 @@ def handle_vote_next_topic(ack, body, client, logger):
         'candidate': candidate,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
-        'user_image': user_image,
+        'user_image': None,  # Will be fetched separately
         'vote': 'vote_next_topic'
     }
-    record_vote(payload, STATE_DIR)
-    logger.info(f"Recorded vote for next topic: {candidate} by {user_id}")
-
-    # Update the UI
+    
     try:
-        if body.get('message'):
-            blocks = body['message'].get('blocks', [])
-            channel_id = body.get('channel', {}).get('id')
-            ts = body.get('message', {}).get('ts')
+        record_vote(payload, STATE_DIR)
+        logger.info(f"Recorded vote for next topic: {candidate} by {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to record vote: {e}")
+        return  # Exit early if we can't record the vote
+    
+    # Fetch user image asynchronously (non-critical)
+    user_image = _get_user_image(client, user_id)
+    if user_image:
+        payload['user_image'] = user_image
+        try:
+            record_vote(payload, STATE_DIR)
+        except Exception as e:
+            logger.warning(f"Failed to update vote with user_image: {e}")
 
-            # Identify which block index was clicked
-            clicked_block_idx = -1
-            for i, block in enumerate(blocks):
-                if block.get('type') == 'section' and block.get('accessory', {}).get('action_id') == action_id:
-                    clicked_block_idx = i
-                    break
+    # Update the UI to show vote count
+    try:
+        if not body.get('message'):
+            logger.warning("No message in body, skipping UI update")
+            return
+            
+        blocks = body['message'].get('blocks', [])
+        channel_id = body.get('channel', {}).get('id')
+        ts = body.get('message', {}).get('ts')
+        
+        if not (channel_id and ts):
+            logger.warning("Missing channel_id or ts, skipping UI update")
+            return
 
-            if clicked_block_idx != -1 and clicked_block_idx + 1 < len(blocks):
-                # The next block should be the context block for this candidate
-                context_block_idx = clicked_block_idx + 1
+        # Identify which block index was clicked
+        clicked_block_idx = -1
+        for i, block in enumerate(blocks):
+            if block.get('type') == 'section' and block.get('accessory', {}).get('action_id') == action_id:
+                clicked_block_idx = i
+                break
 
-                # Use the new votes file structure
-                job = meta.get('job') if meta else None
-                channel = meta.get('channel') if meta else None
-                
-                from app.votes import _get_file_path
-                votes_file = _get_file_path(STATE_DIR, 'votes', job, channel)
-                key = str(meta.get('message_id'))
+        if clicked_block_idx != -1 and clicked_block_idx + 1 < len(blocks):
+            # The next block should be the context block for this candidate
+            context_block_idx = clicked_block_idx + 1
 
-                count = 0
-                recent_images = []
+            # Use the new votes file structure
+            job = meta.get('job') if meta else None
+            channel = meta.get('channel') if meta else None
+            
+            from app.votes import _get_file_path
+            votes_file = _get_file_path(STATE_DIR, 'votes', job, channel)
+            key = str(meta.get('message_id'))
 
-                if os.path.exists(votes_file):
-                    with open(votes_file, 'r') as f:
-                        data = json.load(f)
-                        entry = data.get(key, {})
-                        votes = entry.get('votes', [])
+            count = 0
+            recent_images = []
 
-                        # Filter for this candidate with correct vote type
-                        cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'vote_next_topic']
-                        count = len(cand_votes)
+            if os.path.exists(votes_file):
+                with open(votes_file, 'r') as f:
+                    data = json.load(f)
+                    entry = data.get(key, {})
+                    votes = entry.get('votes', [])
 
-                        seen = set()
-                        for v in sorted(cand_votes, key=lambda x: x.get('timestamp', 0), reverse=True):
-                            uid = v.get('user_id')
-                            img = v.get('user_image')
-                            if uid and img and uid not in seen:
-                                recent_images.append({'image_url': img, 'alt_text': v.get('user_name', 'User')})
-                                seen.add(uid)
-                                if len(recent_images) >= 3:
-                                    break
+                    # Filter for this candidate with correct vote type
+                    cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'vote_next_topic']
+                    count = len(cand_votes)
 
-                details = {'count': count, 'recent_images': recent_images}
-                new_context_block = _make_poll_context_block(details)
-                blocks[context_block_idx] = new_context_block
+                    seen = set()
+                    for v in sorted(cand_votes, key=lambda x: x.get('timestamp', 0), reverse=True):
+                        uid = v.get('user_id')
+                        img = v.get('user_image')
+                        if uid and img and uid not in seen:
+                            recent_images.append({'image_url': img, 'alt_text': v.get('user_name', 'User')})
+                            seen.add(uid)
+                            if len(recent_images) >= 3:
+                                break
 
-                if channel_id and ts:
-                    client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+            details = {'count': count, 'recent_images': recent_images}
+            new_context_block = _make_poll_context_block(details)
+            blocks[context_block_idx] = new_context_block
+
+            client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+            logger.info(f"Updated vote count for {candidate}: {count} votes")
 
     except Exception as e:
-        logger.error(f"Failed to update candidate votes: {e}")
+        logger.error(f"Failed to update candidate votes: {e}", exc_info=True)
 
 if __name__ == "__main__":
     SocketModeHandler(app, SLACK_APP_TOKEN).start()
