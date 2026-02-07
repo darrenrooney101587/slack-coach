@@ -98,6 +98,8 @@ def handle_thumbs_up(ack, body, client, logger):
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
+        'job': meta.get('job') if meta else None,
+        'channel': meta.get('channel') if meta else None,
         'date': meta.get('date') if meta else None,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
@@ -142,6 +144,8 @@ def handle_thumbs_down(ack, body, client, logger):
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
+        'job': meta.get('job') if meta else None,
+        'channel': meta.get('channel') if meta else None,
         'date': meta.get('date') if meta else None,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
@@ -186,12 +190,14 @@ def handle_vote_next_topic(ack, body, client, logger):
     payload = {
         'message_id': meta.get('message_id') if meta else None,
         'topic': meta.get('topic') if meta else None,
+        'job': meta.get('job') if meta else None,
+        'channel': meta.get('channel') if meta else None,
         'date': meta.get('date') if meta else None,
         'candidate': candidate,
         'user_id': user_id,
         'user_name': user.get('username') or user.get('name'),
         'user_image': user_image,
-        'vote': 'next_topic'
+        'vote': 'vote_next_topic'
     }
     record_vote(payload, STATE_DIR)
     logger.info(f"Recorded vote for next topic: {candidate} by {user_id}")
@@ -214,27 +220,12 @@ def handle_vote_next_topic(ack, body, client, logger):
                 # The next block should be the context block for this candidate
                 context_block_idx = clicked_block_idx + 1
 
-                # Retrieve updated vote counts/images for this candidate
-                # We need to filter votes by this message_id + candidate
-                # but our get_vote_counts is generic. We need get_poll_details.
-
-                # First, ensure we have the list of all candidates to distinguish them if needed,
-                # or just filter get_vote_counts return.
-                # Actually, record_vote saves by 'message_id' key.
-                # All votes for this message are under one key.
-                # We need to filter by candidate.
-
-                from app.votes import get_poll_details
-                # We simulate `get_poll_details` logic here or use it if it exists and works for single candidate
-                # Actually, let's use get_vote_counts but we need to implement candidate filtering in votes.py
-                # or do it here.
-                # Let's peek at `app/votes.py` again.
-                # `get_poll_details` seems designed for this.
-
-                # For now, let's just re-read the full votes and filter manually to be safe
-                # because I cannot easily see `get_poll_details` full implementation.
-
-                votes_file = os.path.join(STATE_DIR, 'votes.json')
+                # Use the new votes file structure
+                job = meta.get('job') if meta else None
+                channel = meta.get('channel') if meta else None
+                
+                from app.votes import _get_file_path
+                votes_file = _get_file_path(STATE_DIR, 'votes', job, channel)
                 key = str(meta.get('message_id'))
 
                 count = 0
@@ -246,8 +237,8 @@ def handle_vote_next_topic(ack, body, client, logger):
                         entry = data.get(key, {})
                         votes = entry.get('votes', [])
 
-                        # Filter for this candidate
-                        cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'next_topic']
+                        # Filter for this candidate with correct vote type
+                        cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'vote_next_topic']
                         count = len(cand_votes)
 
                         seen = set()

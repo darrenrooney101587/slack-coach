@@ -5,9 +5,37 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def _get_file_path(state_dir: str, file_type: str, job: str = None, channel: str = None):
+    """
+    Generate file path for votes or feedback based on job and channel.
+    file_type: 'votes' or 'feedback'
+    """
+    if job and channel:
+        return os.path.join(state_dir, f'{file_type}_{job}_{channel}.json')
+    elif job:
+        return os.path.join(state_dir, f'{file_type}_{job}.json')
+    else:
+        # Fallback to legacy file
+        return os.path.join(state_dir, f'{file_type}.json')
+
+
 def record_vote(payload: dict, state_dir: str):
+    """
+    Records a vote or feedback.
+    - Thumbs up/down go to feedback_{job}_{channel}.json
+    - Next topic votes go to votes_{job}_{channel}.json
+    """
     os.makedirs(state_dir, exist_ok=True)
-    votes_file = os.path.join(state_dir, 'votes.json')
+    
+    vote_type = payload.get('vote')
+    job = payload.get('job')
+    channel = payload.get('channel')
+    
+    # Determine if this is feedback or a topic vote
+    is_feedback = vote_type in ['thumbs_up', 'thumbs_down']
+    file_type = 'feedback' if is_feedback else 'votes'
+    
+    votes_file = _get_file_path(state_dir, file_type, job, channel)
 
     try:
         if os.path.exists(votes_file):
@@ -52,24 +80,25 @@ def record_vote(payload: dict, state_dir: str):
     with open(votes_file, 'w') as f:
         json.dump(data, f, indent=2)
 
-    logger.info(f"Recorded vote: {payload}")
+    logger.info(f"Recorded {file_type}: {payload}")
 
 
-def get_vote_counts(key: str, state_dir: str):
-    """Return a dict with counts for the given vote key.
 
-    Returns: {'thumbs_up': int, 'thumbs_down': int, 'total': int}
+def get_vote_counts(key: str, state_dir: str, job: str = None, channel: str = None):
+    """Return a dict with feedback counts for the given key.
+
+    Returns: {'thumbs_up': int, 'thumbs_down': int, 'total': int, 'recent_images': list}
     If no votes exist, returns zeros.
     """
-    votes_file = os.path.join(state_dir, 'votes.json')
+    feedback_file = _get_file_path(state_dir, 'feedback', job, channel)
     try:
-        if os.path.exists(votes_file):
-            with open(votes_file, 'r') as f:
+        if os.path.exists(feedback_file):
+            with open(feedback_file, 'r') as f:
                 data = json.load(f)
         else:
-            return {'thumbs_up': 0, 'thumbs_down': 0, 'total': 0}
+            return {'thumbs_up': 0, 'thumbs_down': 0, 'total': 0, 'recent_images': []}
     except Exception:
-        return {'thumbs_up': 0, 'thumbs_down': 0, 'total': 0}
+        return {'thumbs_up': 0, 'thumbs_down': 0, 'total': 0, 'recent_images': []}
 
     entry = data.get(str(key)) or {}
     votes = entry.get('votes', []) if isinstance(entry, dict) else []
@@ -98,13 +127,13 @@ def get_vote_counts(key: str, state_dir: str):
     }
 
 
-def get_poll_details(key: str, candidates: list, state_dir: str):
+def get_poll_details(key: str, candidates: list, state_dir: str, job: str = None, channel: str = None):
     """
     Returns specific vote counts and user images for a list of candidates
     for a specific message (key).
     Returns: { 'Candidate A': {'count': 5, 'images': [...]}, ... }
     """
-    votes_file = os.path.join(state_dir, 'votes.json')
+    votes_file = _get_file_path(state_dir, 'votes', job, channel)
     data = {}
     try:
         if os.path.exists(votes_file):
@@ -150,7 +179,7 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
     The 'date' argument refers to the date the voting message was SENT (i.e., yesterday).
     Optional job_filter ensures we only count votes for the specific coach job (Postgres vs DataEng).
     """
-    votes_file = os.path.join(state_dir, 'votes.json')
+    votes_file = _get_file_path(state_dir, 'votes', job_filter, channel_filter)
     try:
         if os.path.exists(votes_file):
             with open(votes_file, 'r') as f:
@@ -178,8 +207,8 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
         if job_filter and entry.get('job') != job_filter:
             continue
 
-        # If channel_filter provided, ensure entry's channel matches (if entry records channel)
-        if channel_filter and entry.get('channel') and entry.get('channel') != channel_filter:
+        # If channel_filter provided, only consider entries that explicitly match that channel
+        if channel_filter and entry.get('channel') != channel_filter:
             continue
 
         # Optionally also allow channel scope in the entry (if present)

@@ -61,10 +61,16 @@ cp .env.example .env
 Important env vars in `.env` (fill these in):
 - `SLACK_BOT_TOKEN` — bot user token (xoxb-...)
 - `SLACK_CHANNEL_ID_VIEW` — channel id where the Postgres "view" (database) team posts. `SLACK_CHANNEL_ID` remains supported for backward compatibility.
+- `SLACK_CHANNEL_ID_DATA_ENG` — (optional) channel id for Data Engineering Coach. If set, the DE job will run alongside the Postgres job.
 - `SLACK_SIGNING_SECRET` — used by the Flask receiver to verify Slack requests
 - `AWS_REGION`, `BEDROCK_MODEL_ID` — Bedrock model and region
 - Optional: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` if you want to provide explicit credentials
 - `HOST_STATE_DIR` — host directory to persist `/app/state` (default `./state`)
+
+**Multi-channel Support**: The system now supports running multiple coach jobs (Postgres and Data Engineering) to separate Slack channels. Each channel maintains its own:
+- Dedupe state file: `last_sent_{job_name}_{channel_id}.json`
+- Vote tallies: votes are filtered by both `job` and `channel` when determining winners
+- This ensures the VIEW team and Data Engineering team can run independently without interfering with each other's voting or scheduling.
 
 NOTE: Some Docker Compose installations require Buildx to perform an image build via `docker compose build`. If your environment shows an error like:
 

@@ -217,12 +217,24 @@ class DailyCoach:
         else:
             file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
 
-        # Backward compatibility: only fall back to legacy if no channel was provided
+        # Backward compatibility / migration support:
+        # - If no channel suffix provided, use legacy file as before.
+        # - If a channel is provided but the channel-specific file doesn't exist, and
+        #   MIGRATE_LEGACY_DEDUPE=1, copy the legacy file to the channel-specific file to preserve prior state.
+        legacy = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
         if not channel_suffix:
-            legacy = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
             if os.path.exists(legacy):
                 file_path = legacy
                 logger.info(f"Using legacy dedupe file: {file_path}")
+        else:
+            # channel_suffix exists; if channel-specific file missing, optionally migrate legacy file
+            if not os.path.exists(file_path) and os.path.exists(legacy) and os.environ.get('MIGRATE_LEGACY_DEDUPE') == '1':
+                try:
+                    with open(legacy, 'r') as src, open(file_path, 'w') as dst:
+                        dst.write(src.read())
+                    logger.info(f"Migrated legacy dedupe {legacy} -> {file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to migrate legacy dedupe file: {e}")
 
         if os.path.exists(file_path):
             try:
@@ -354,9 +366,45 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 raw_content = raw_content[:-3]
 
             try:
-                return json.loads(raw_content.strip())
-            except json.JSONDecodeError:
-                logger.error("Failed to decode JSON from model response. Falling back to raw text.")
+                parsed = json.loads(raw_content.strip())
+                # If we got a dict with 'text' and 'resource_url', return it
+                if isinstance(parsed, dict) and 'text' in parsed:
+                    # Check if the 'text' field itself is JSON (double-encoded)
+                    text_value = parsed['text']
+                    if isinstance(text_value, str) and text_value.strip().startswith('{'):
+                        try:
+                            # Try to parse the text as JSON
+                            inner_parsed = json.loads(text_value)
+                            if isinstance(inner_parsed, dict) and 'text' in inner_parsed:
+                                logger.warning("Detected double-encoded JSON, using inner content")
+                                return inner_parsed
+                        except json.JSONDecodeError:
+                            pass  # Not actually JSON, use as-is
+                    return parsed
+                else:
+                    # Unexpected structure, fall back
+                    logger.error(f"Unexpected JSON structure: {parsed}")
+                    return {
+                        "text": str(parsed) if not isinstance(parsed, dict) else json.dumps(parsed),
+                        "resource_url": "https://www.postgresql.org/docs/current/"
+                    }
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to decode JSON from model response: {e}. Falling back to raw text.")
+                # Sometimes the model returns a JSON string containing JSON - try to extract text field
+                # Look for patterns like: {"text": "...", "resource_url": "..."}
+                import re
+                text_match = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', raw_content)
+                if text_match:
+                    extracted_text = text_match.group(1)
+                    # Unescape the text
+                    extracted_text = extracted_text.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+                    url_match = re.search(r'"resource_url"\s*:\s*"([^"]*)"', raw_content)
+                    url = url_match.group(1) if url_match else "https://www.postgresql.org/docs/current/"
+                    return {
+                        "text": extracted_text,
+                        "resource_url": url
+                    }
+                # If all else fails, use raw content as the message
                 return {
                     "text": raw_content.strip(),
                     "resource_url": "https://www.postgresql.org/docs/current/"
@@ -485,8 +533,16 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 'Content-Type': 'application/json'
             }
 
-            # Build block kit with buttons (meta already defined above)
+            # Build block kit with buttons
             # Button values include metadata so the server can record who voted for which topic/date
+            # Include job and channel for proper partitioning
+            meta = json.dumps({
+                'message_id': message_id,
+                'topic': topic,
+                'job': self.job_name,
+                'channel': self.slack_channel_id,
+                'date': self._get_today_date()
+            })
 
             # Header Section
             header_section = {
@@ -527,6 +583,8 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                     cand_meta = json.dumps({
                         'message_id': message_id,
                         'topic': topic, # current topic context
+                        'job': self.job_name,
+                        'channel': self.slack_channel_id,
                         'date': self._get_today_date(),
                         'candidate': cand
                     })
@@ -654,7 +712,7 @@ if __name__ == "__main__":
     group.add_argument('--all', action='store_true', help='Run all configured coaches (default if no flag)')
     args = parser.parse_args()
 
-    run_view = args.view or (not args.data_engineering and not args.all and not args.view)
+    run_view = args.view or args.all or (not any([args.view, args.data_engineering, args.all]))
     run_de = args.data_engineering or args.all or (not any([args.view, args.data_engineering, args.all]))
 
     # Postgres Coach (View)
