@@ -16,6 +16,9 @@ ENV PATH="/root/.local/bin:$PATH"
 RUN useradd -m -u 1000 -s /bin/bash appuser
 WORKDIR /app
 COPY pyproject.toml poetry.lock* /app/
+# Increase network timeouts so poetry/pip don't fail on slow connections
+ENV POETRY_REQUESTS_TIMEOUT=120
+ENV PIP_DEFAULT_TIMEOUT=120
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --only main
 # Copy application code and top-level environment helper

@@ -256,68 +256,62 @@ def handle_vote_next_topic(ack, body, client, logger):
         except Exception as e:
             logger.warning(f"Failed to update vote with user_image: {e}")
 
-    # Update the UI to show vote count
+    # Update the UI to show vote counts for all candidates
     try:
         if not body.get('message'):
             logger.warning("No message in body, skipping UI update")
             return
-            
+
         blocks = body['message'].get('blocks', [])
         channel_id = body.get('channel', {}).get('id')
         ts = body.get('message', {}).get('ts')
-        
+
         if not (channel_id and ts):
             logger.warning("Missing channel_id or ts, skipping UI update")
             return
 
-        # Identify which block index was clicked
-        clicked_block_idx = -1
+        # Find all candidate section blocks and corresponding context block indices
+        candidates = []
+        cand_context_indices = {}
+        import re as _re
         for i, block in enumerate(blocks):
-            if block.get('type') == 'section' and block.get('accessory', {}).get('action_id') == action_id:
-                clicked_block_idx = i
-                break
+            if block.get('type') == 'section':
+                accessory = block.get('accessory') or {}
+                action_id_val = accessory.get('action_id', '')
+                if isinstance(action_id_val, str) and action_id_val.startswith('vote_next_topic_'):
+                    # Extract candidate text from the section
+                    text_obj = block.get('text') or {}
+                    cand_text = text_obj.get('text', '').strip()
+                    # Remove surrounding asterisks/bolding if present
+                    cand_clean = _re.sub(r"^\*+|\*+$", '', cand_text).strip()
+                    candidates.append(cand_clean)
+                    ctx_idx = i + 1
+                    if ctx_idx < len(blocks) and blocks[ctx_idx].get('type') == 'context':
+                        cand_context_indices[cand_clean] = ctx_idx
 
-        if clicked_block_idx != -1 and clicked_block_idx + 1 < len(blocks):
-            # The next block should be the context block for this candidate
-            context_block_idx = clicked_block_idx + 1
+        if not candidates:
+            logger.info("No candidates found in message blocks; skipping UI refresh")
+            return
 
-            # Use the new votes file structure
-            job = meta.get('job') if meta else None
-            channel = meta.get('channel') if meta else None
-            
-            from app.votes import _get_file_path
-            votes_file = _get_file_path(STATE_DIR, 'votes', job, channel)
-            key = str(meta.get('message_id'))
+        # Compute poll details for all candidates
+        job = meta.get('job') if meta else None
+        channel = meta.get('channel') if meta else None
+        key = str(meta.get('message_id')) if meta else None
 
-            count = 0
-            recent_images = []
+        poll_details = get_poll_details(key, candidates, STATE_DIR, job, channel)
 
-            if os.path.exists(votes_file):
-                with open(votes_file, 'r') as f:
-                    data = json.load(f)
-                    entry = data.get(key, {})
-                    votes = entry.get('votes', [])
+        # Replace each candidate's context block with fresh details
+        for cand in candidates:
+            details = poll_details.get(cand) if poll_details and isinstance(poll_details, dict) else None
+            if not details:
+                details = {'count': 0, 'recent_images': []}
+            ctx_idx = cand_context_indices.get(cand)
+            if ctx_idx is not None and ctx_idx < len(blocks):
+                blocks[ctx_idx] = _make_poll_context_block(details)
 
-                    # Filter for this candidate with correct vote type
-                    cand_votes = [v for v in votes if v.get('candidate') == candidate and v.get('vote') == 'vote_next_topic']
-                    count = len(cand_votes)
-
-                    seen = set()
-                    for v in sorted(cand_votes, key=lambda x: x.get('timestamp', 0), reverse=True):
-                        uid = v.get('user_id')
-                        img = v.get('user_image')
-                        if uid and img and uid not in seen:
-                            recent_images.append({'image_url': img, 'alt_text': v.get('user_name', 'User')})
-                            seen.add(uid)
-                            if len(recent_images) >= 3:
-                                break
-
-            details = {'count': count, 'recent_images': recent_images}
-            new_context_block = _make_poll_context_block(details)
-            blocks[context_block_idx] = new_context_block
-
-            client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
-            logger.info(f"Updated vote count for {candidate}: {count} votes")
+        # Single chat_update to refresh the whole poll UI
+        client.chat_update(channel=channel_id, ts=ts, blocks=blocks)
+        logger.info(f"Refreshed poll UI for message {ts}")
 
     except Exception as e:
         logger.error(f"Failed to update candidate votes: {e}", exc_info=True)
