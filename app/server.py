@@ -11,7 +11,6 @@ from votes import record_vote
 app = Flask(__name__)
 
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
-# Default to /app/state to match container mounts
 STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
 
 if not SLACK_SIGNING_SECRET:
@@ -53,7 +52,6 @@ def slack_actions():
         return jsonify({'ok': False}), 400
 
     data = json.loads(payload)
-    # interactive button payload
     user = data.get('user', {})
     actions = data.get('actions', [])
     if not actions:
@@ -66,7 +64,6 @@ def slack_actions():
         meta = {}
 
     action_id = action.get('action_id')
-    # Normalize vote type for next topic
     if action_id.startswith('vote_next_topic'):
         vote_type = 'vote_next_topic'
     else:
@@ -86,7 +83,6 @@ def slack_actions():
 
     record_vote_payload(vote_payload)
 
-    # Respond with an ephemeral confirmation
     response_text = 'Thanks — your vote was recorded.'
     if vote_payload['vote'] == 'vote_next_topic' and vote_payload['candidate']:
          response_text = f"Thanks! You voted for: {vote_payload['candidate']}"

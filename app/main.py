@@ -15,11 +15,8 @@ from environment import load_env
 try:
     from votes import get_winning_next_topic
 except ImportError:
-    # If running from different context, might need to adjust path or define mock
-    # Should work if running inside container as designed
     get_winning_next_topic = None
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -28,7 +25,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_env()
-# Constants
 DEFAULT_TOPICS = [
     "sargable date predicates",
     "avoiding extract() in WHERE clauses",
@@ -112,12 +108,10 @@ class DailyCoach:
         self.role_prompt = role_prompt
         self.title_prefix = title_prefix
 
-        # Required Env Vars
         self.aws_region = os.environ.get('AWS_REGION')
         self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID')
         self.slack_mode = os.environ.get('SLACK_MODE', 'webhook').lower()
 
-        # Access Check
         if not self.aws_region or not self.bedrock_model_id:
             raise ValueError("Missing AWS_REGION or BEDROCK_MODEL_ID")
 
@@ -132,23 +126,15 @@ class DailyCoach:
         else:
             raise ValueError("Invalid SLACK_MODE. Must be 'webhook' or 'bot'")
 
-        # Optional Env Vars
         self.temperature = float(os.environ.get('TEMPERATURE', '0.4'))
         self.max_tokens = int(os.environ.get('MAX_TOKENS', '450'))
         self.dedupe_enabled = os.environ.get('DEDUPE_ENABLED', 'true').lower() == 'true'
-        # Short subtitle shown under the header as small grey text; configurable per deployment
         self.title_subtitle = os.environ.get('TITLE_SUBTITLE', 'Concise daily performance tips and practical examples.')
-        # Default to /app/state which is what docker-compose mounts from HOST_STATE_DIR
         self.state_dir = os.environ.get('STATE_DIR', '/app/state')
         self.tz = os.environ.get('TZ', 'UTC')
         self.topic_mode = os.environ.get('TOPIC_MODE', 'rotation')
         self.curriculum_file = os.environ.get('CURRICULUM_FILE', '/app/curriculum.yml')
 
-        # No accessory image is used anymore; remove SLACK_COACH_IMAGE_URL support.
-        # self.slack_coach_image_url = os.environ.get('SLACK_COACH_IMAGE_URL')
-
-        # Ensure state dir is writable; fall back to a tmp directory if not.
-        # If neither is writable, disable dedupe to avoid crashing on read-only filesystems.
         try:
             os.makedirs(self.state_dir, exist_ok=True)
         except Exception as e:
@@ -162,15 +148,11 @@ class DailyCoach:
                 logger.error(f"Failed to create fallback state directory '{fallback}': {e2}. Disabling dedupe.")
                 self.dedupe_enabled = False
 
-        # Support for explicit AWS credentials via the standard env var names
-        # If these are set (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY), pass them
-        # to boto3 so the Bedrock client will use them. Otherwise boto3 will use
-        # its normal credential resolution (env, shared config, instance role, etc.).
+
         self.aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         self.aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
         self.aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
 
-        # Initialize Boto3 Client
         client_kwargs = {}
         if self.aws_access_key and self.aws_secret_key:
             client_kwargs['aws_access_key_id'] = self.aws_access_key
@@ -178,7 +160,6 @@ class DailyCoach:
             if self.aws_session_token:
                 client_kwargs['aws_session_token'] = self.aws_session_token
 
-        # remember whether we attempted to use explicit env-provided AWS creds
         self._used_explicit_aws_creds = bool(client_kwargs)
 
         self.bedrock_client = boto3.client(
@@ -210,24 +191,18 @@ class DailyCoach:
         if not self.dedupe_enabled:
             return False
 
-        # Use channel-specific dedupe file when possible to maintain idempotency per channel
         channel_suffix = self.slack_channel_id or ''
         if channel_suffix:
             file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}_{channel_suffix}.json')
         else:
             file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
 
-        # Backward compatibility / migration support:
-        # - If no channel suffix provided, use legacy file as before.
-        # - If a channel is provided but the channel-specific file doesn't exist, and
-        #   MIGRATE_LEGACY_DEDUPE=1, copy the legacy file to the channel-specific file to preserve prior state.
         legacy = os.path.join(self.state_dir, f'last_sent_{self.job_name}.json')
         if not channel_suffix:
             if os.path.exists(legacy):
                 file_path = legacy
                 logger.info(f"Using legacy dedupe file: {file_path}")
         else:
-            # channel_suffix exists; if channel-specific file missing, optionally migrate legacy file
             if not os.path.exists(file_path) and os.path.exists(legacy) and os.environ.get('MIGRATE_LEGACY_DEDUPE') == '1':
                 try:
                     with open(legacy, 'r') as src, open(file_path, 'w') as dst:
@@ -253,7 +228,6 @@ class DailyCoach:
         if not self.dedupe_enabled:
             return
 
-        # Persist dedupe per-channel when possible
         channel_suffix = self.slack_channel_id or ''
         if channel_suffix:
             file_path = os.path.join(self.state_dir, f'last_sent_{self.job_name}_{channel_suffix}.json')
@@ -273,10 +247,8 @@ class DailyCoach:
 
     def get_next_topic_candidates(self, current_topic: str) -> list:
         """Selects 3 random topics excluding the current one."""
-        # Retrieve pool of topics (uses self.topics injected in init)
         pool = [t for t in self.topics if t != current_topic]
 
-        # Select 3 unique
         seed = int(time.time())
         count = min(3, len(pool))
         return random.sample(pool, count)
@@ -284,7 +256,6 @@ class DailyCoach:
     def get_topic(self, date_seed: int, check_votes: bool = True) -> str:
         """Selects a topic based on votes or random seed."""
 
-        # 1. Check for winning vote from yesterday (filtered by job_name)
         if check_votes and get_winning_next_topic:
             yesterday = self._get_date(days_offset=-1)
             winner = get_winning_next_topic(yesterday, self.state_dir, job_filter=self.job_name, channel_filter=self.slack_channel_id)
@@ -292,16 +263,13 @@ class DailyCoach:
                 logger.info(f"[{self.job_name}] Using voted topic winner from {yesterday}: {winner}")
                 return winner
 
-        # 2. Fallback to standard selection from self.topics
         logger.info(f"[{self.job_name}] selecting random topic from list of {len(self.topics)} items.")
 
-        # Use deterministic random based on seed
         random.seed(date_seed)
         return random.choice(self.topics)
 
     def generate_content(self, topic: str) -> dict:
         """Calls Bedrock to generate the content."""
-        # Short-circuit for local testing: if DRY_RUN=1 or SLACK_DRY_RUN=1, return a canned payload
         if os.environ.get('DRY_RUN') == '1' or os.environ.get('SLACK_DRY_RUN') == '1':
             logger.info('DRY_RUN detected: returning canned content without invoking Bedrock')
             return {
@@ -357,7 +325,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
             response_body = json.loads(response['body'].read())
             raw_content = response_body['content'][0]['text'].strip()
 
-            # Attempt to clean potential markdown formatting
             if raw_content.startswith('```json'):
                 raw_content = raw_content[7:]
             elif raw_content.startswith('```'):
@@ -367,22 +334,18 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
 
             try:
                 parsed = json.loads(raw_content.strip())
-                # If we got a dict with 'text' and 'resource_url', return it
                 if isinstance(parsed, dict) and 'text' in parsed:
-                    # Check if the 'text' field itself is JSON (double-encoded)
                     text_value = parsed['text']
                     if isinstance(text_value, str) and text_value.strip().startswith('{'):
                         try:
-                            # Try to parse the text as JSON
                             inner_parsed = json.loads(text_value)
                             if isinstance(inner_parsed, dict) and 'text' in inner_parsed:
                                 logger.warning("Detected double-encoded JSON, using inner content")
                                 return inner_parsed
                         except json.JSONDecodeError:
-                            pass  # Not actually JSON, use as-is
+                            pass
                     return parsed
                 else:
-                    # Unexpected structure, fall back
                     logger.error(f"Unexpected JSON structure: {parsed}")
                     return {
                         "text": str(parsed) if not isinstance(parsed, dict) else json.dumps(parsed),
@@ -390,13 +353,10 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                     }
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to decode JSON from model response: {e}. Falling back to raw text.")
-                # Sometimes the model returns a JSON string containing JSON - try to extract text field
-                # Look for patterns like: {"text": "...", "resource_url": "..."}
                 import re
                 text_match = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', raw_content)
                 if text_match:
                     extracted_text = text_match.group(1)
-                    # Unescape the text
                     extracted_text = extracted_text.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
                     url_match = re.search(r'"resource_url"\s*:\s*"([^"]*)"', raw_content)
                     url = url_match.group(1) if url_match else "https://www.postgresql.org/docs/current/"
@@ -404,7 +364,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                         "text": extracted_text,
                         "resource_url": url
                     }
-                # If all else fails, use raw content as the message
                 return {
                     "text": raw_content.strip(),
                     "resource_url": "https://www.postgresql.org/docs/current/"
@@ -412,8 +371,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
 
         except Exception as e:
             logger.error(f"Bedrock invocation failed: {e}")
-            # If the failure looks like an invalid/expired custom credential, try once
-            # to recreate the client without custom AWS_CLAUDE_* creds and retry.
             err_text = str(e).lower()
             if self._used_explicit_aws_creds and ("unrecognizedclientexception" in err_text or "security token" in err_text or "invalid" in err_text):
                 logger.warning("Custom AWS credentials appear invalid; retrying with default boto3 credentials.")
@@ -449,11 +406,9 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
         full_message = f"*{self.title_prefix}*\n\n{message}"
         logger.info(f"Posting to Slack in mode={self.slack_mode} channel={self.slack_channel_id}")
 
-        # Ensure we have a message_id to include in metadata
         if not message_id:
             message_id = str(int(time.time() * 1000))
 
-        # Shared metadata for buttons
         meta = json.dumps({
             'message_id': message_id,
             'topic': topic,
@@ -463,9 +418,7 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
         })
 
         # Note: This implementation no longer supports uploading a base64 image from an env var.
-        # If you want an accessory image include a public URL via SLACK_COACH_IMAGE_URL.
         if self.slack_mode == 'webhook':
-            # Build the same blocks payload as bot mode so incoming webhooks render the subtitle
             header_section = {
                 'type': 'section',
                 'text': {'type': 'mrkdwn', 'text': f"*{self.title_prefix}*"}
@@ -485,7 +438,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 blocks.append(header_subtitle_block)
             blocks.extend([{'type': 'divider'}, body_section, {'type': 'divider'}])
 
-            # Append Vote for Next Topic Section (same layout as bot)
             if candidates:
                 blocks.append({'type': 'section', 'text': {'type': 'mrkdwn', 'text': '*Vote for next topic:*'}})
                 for i, cand in enumerate(candidates):
@@ -509,7 +461,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                     blocks.append({'type': 'context', 'elements': [{'type': 'plain_text', 'emoji': True, 'text': 'No votes'}]})
                 blocks.append({'type': 'divider'})
 
-            # Action buttons
             action_elements = [
                 {'type': 'button', 'text': {'type': 'plain_text', 'text': 'Helpful', 'emoji': True}, 'action_id': 'thumbs_up', 'style': 'primary', 'value': meta},
                 {'type': 'button', 'text': {'type': 'plain_text', 'text': 'Not Helpful', 'emoji': True}, 'action_id': 'thumbs_down', 'style': 'danger', 'value': meta}
@@ -518,7 +469,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 action_elements.append({'type': 'button', 'text': {'type': 'plain_text', 'text': '📖 Docs', 'emoji': True}, 'url': resource_url})
             blocks.append({'type': 'actions', 'elements': action_elements})
 
-            # Dry-run support: if SLACK_DRY_RUN=1, just log the blocks and return
             if os.environ.get('SLACK_DRY_RUN') == '1':
                 logger.info(f"Dry run - blocks payload:\n{json.dumps(blocks, indent=2)}")
                 return
@@ -533,9 +483,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 'Content-Type': 'application/json'
             }
 
-            # Build block kit with buttons
-            # Button values include metadata so the server can record who voted for which topic/date
-            # Include job and channel for proper partitioning
             meta = json.dumps({
                 'message_id': message_id,
                 'topic': topic,
@@ -544,13 +491,11 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 'date': self._get_today_date()
             })
 
-            # Header Section
             header_section = {
                 'type': 'section',
                 'text': {'type': 'mrkdwn', 'text': f"*{self.title_prefix}*"}
             }
 
-            # Optional small subtitle shown below the header (renders as small grey text in Slack)
             header_subtitle_block = None
             if self.title_subtitle:
                 header_subtitle_block = {
@@ -560,19 +505,16 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                     ]
                 }
 
-            # Body Section
             body_section = {
                 'type': 'section',
                 'text': {'type': 'mrkdwn', 'text': message}
             }
 
-            # Build blocks: header, optional subtitle, divider, body...
             blocks = [header_section]
             if header_subtitle_block:
                 blocks.append(header_subtitle_block)
             blocks.extend([{'type': 'divider'}, body_section, {'type': 'divider'}])
 
-            # Append Vote for Next Topic Section
             if candidates:
                 blocks.append({
                     'type': 'section',
@@ -589,7 +531,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                         'candidate': cand
                     })
 
-                    # 1. Candidate Section with Vote Button
                     blocks.append({
                         'type': 'section',
                         'text': {'type': 'mrkdwn', 'text': f"*{cand}*"},
@@ -601,7 +542,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                         }
                     })
 
-                    # 2. Context with votes for this candidate (initially empty)
                     blocks.append({
                          'type': 'context',
                          'elements': [
@@ -611,11 +551,9 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
 
                 blocks.append({'type': 'divider'})
 
-            # Additional Actions (Helpful / Not Helpful / Docs)
             action_elements = [
                 {
                     'type': 'button',
-                    # use emoji shortcodes for arrow up/down
                     'text': {'type': 'plain_text', 'text': 'Helpful   :thumbsup:', 'emoji': True},
                     'action_id': 'thumbs_up',
                     'style': 'primary',
@@ -630,7 +568,6 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 }
             ]
 
-            # Add "Read Docs" button if URL is available
             if resource_url:
                 action_elements.append({
                     'type': 'button',
@@ -649,12 +586,10 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                 'text': self.title_prefix
             }
 
-            # Dry-run support for bot mode
             if os.environ.get('SLACK_DRY_RUN') == '1':
                 logger.info(f"Dry run - payload to send to chat.postMessage:\n{json.dumps(payload, indent=2)}")
                 return
 
-            # Log payload and perform the post
             logger.info(f"Slack payload: {json.dumps(payload)}")
             response = requests.post(
                 'https://slack.com/api/chat.postMessage',
@@ -679,14 +614,10 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
             if self.check_dedupe(today):
                 sys.exit(0)
 
-            # Generate deterministic seed from date
-            # YYYY-MM-DD -> integer
-            # remove dashes, convert to int
             date_int = int(today.replace('-', ''))
 
             topic = self.get_topic(date_seed=date_int)
 
-            # Generate candidates for next run
             candidates = self.get_next_topic_candidates(topic)
 
             content_data = self.generate_content(topic)
@@ -715,7 +646,6 @@ if __name__ == "__main__":
     run_view = args.view or args.all or (not any([args.view, args.data_engineering, args.all]))
     run_de = args.data_engineering or args.all or (not any([args.view, args.data_engineering, args.all]))
 
-    # Postgres Coach (View)
     if run_view:
         postgres_channel = os.environ.get("SLACK_CHANNEL_ID_VIEW") or os.environ.get("SLACK_CHANNEL_ID")
         postgres_coach = DailyCoach(
@@ -730,7 +660,6 @@ if __name__ == "__main__":
         else:
             logger.warning("SLACK_CHANNEL_ID_VIEW (or SLACK_CHANNEL_ID) not set; skipping Postgres Coach job.")
 
-    # Data Engineering Coach
     if run_de:
         de_channel = os.environ.get("SLACK_CHANNEL_ID_DATA_ENG")
         if de_channel:

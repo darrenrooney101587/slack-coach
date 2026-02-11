@@ -15,7 +15,6 @@ def _get_file_path(state_dir: str, file_type: str, job: str = None, channel: str
     elif job:
         return os.path.join(state_dir, f'{file_type}_{job}.json')
     else:
-        # Fallback to legacy file
         return os.path.join(state_dir, f'{file_type}.json')
 
 
@@ -26,15 +25,14 @@ def record_vote(payload: dict, state_dir: str):
     - Next topic votes go to votes_{job}_{channel}.json
     """
     os.makedirs(state_dir, exist_ok=True)
-    
+
     vote_type = payload.get('vote')
     job = payload.get('job')
     channel = payload.get('channel')
-    
-    # Determine if this is feedback or a topic vote
+
     is_feedback = vote_type in ['thumbs_up', 'thumbs_down']
     file_type = 'feedback' if is_feedback else 'votes'
-    
+
     votes_file = _get_file_path(state_dir, file_type, job, channel)
 
     try:
@@ -106,10 +104,8 @@ def get_vote_counts(key: str, state_dir: str, job: str = None, channel: str = No
     downs = sum(1 for v in votes if v.get('vote') == 'thumbs_down')
     total = len(votes)
 
-    # Collect recent voter images (limit to 3 for clean UI)
     recent_images = []
     seen = set()
-    # Sort by timestamp descending to show most recent voters
     for v in sorted(votes, key=lambda x: x.get('timestamp', 0), reverse=True):
         uid = v.get('user_id')
         img = v.get('user_image')
@@ -147,15 +143,12 @@ def get_poll_details(key: str, candidates: list, state_dir: str, job: str = None
 
     result = {}
     for cand in candidates:
-        # Filter votes for this candidate where vote type is 'vote_next_topic'
         cand_votes = [v for v in all_votes if v.get('vote') == 'vote_next_topic' and v.get('candidate') == cand]
 
         count = len(cand_votes)
 
-        # Collect recent images
         recent_images = []
         seen = set()
-        # Sort desc by timestamp
         for v in sorted(cand_votes, key=lambda x: x.get('timestamp', 0), reverse=True):
             uid = v.get('user_id')
             img = v.get('user_image')
@@ -189,29 +182,19 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
     except Exception:
         return None
 
-    # Find entries for the given date
-    # (The key is somewhat arbitrary, usually message_id or timestamp, so we search values)
-
-    # We are looking for votes cast ON the message from 'date'.
-    # Our data structure is keyed by message_id.
-    # We need to find the message(s) where entry['date'] == date.
 
     candidates_counts = {}
 
     for key, entry in data.items():
-        # match by date
         if entry.get('date') != date:
             continue
 
-        # If job_filter is provided (e.g. 'postgres'), ensure message/job matches
         if job_filter and entry.get('job') != job_filter:
             continue
 
-        # If channel_filter provided, only consider entries that explicitly match that channel
         if channel_filter and entry.get('channel') != channel_filter:
             continue
 
-        # Optionally also allow channel scope in the entry (if present)
         for v in entry.get('votes', []):
             if v.get('vote') == 'vote_next_topic' and v.get('candidate'):
                 cand = v.get('candidate')
@@ -220,7 +203,5 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
     if not candidates_counts:
         return None
 
-    # Return the candidate with the most votes
-    # Sort by count (desc) then by name (asc) for determinism
     sorted_candidates = sorted(candidates_counts.items(), key=lambda x: (-x[1], x[0]))
     return sorted_candidates[0][0]

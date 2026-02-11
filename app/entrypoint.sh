@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Choose mode: 'job' (default) runs the scheduled job; 'server' runs the Flask receiver; 'cron' starts cron; 'socket' runs Slack Socket Mode
 RUN_MODE=${RUN_MODE:-job}
 
-# Ensure STATE_DIR env var exists and is writable; default to /state
 STATE_DIR=${STATE_DIR:-/state}
 export STATE_DIR
 mkdir -p "$STATE_DIR" 2>/dev/null || true
