@@ -32,7 +32,7 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 ENV PYTHONPATH=/app
-ENV STATE_DIR=/state
+ENV STATE_DIR=/app/state
 ENV RUN_MODE=job
 EXPOSE 8080
 
