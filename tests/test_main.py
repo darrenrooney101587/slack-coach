@@ -96,3 +96,24 @@ def test_run_flow(mock_dedupe, mock_get_topic, mock_gen, mock_post, mock_env, co
     mock_get_topic.assert_called_once()
     mock_gen.assert_called_once_with("Test Topic")
     mock_post.assert_called_once()
+
+@patch('app.main.requests.post')
+def test_post_to_slack_webhook_includes_channel_in_candidate_meta(mock_post, mock_env, coach_args):
+    coach = DailyCoach(**coach_args)
+    coach.post_to_slack("My message", topic="test", message_id="123", candidates=["c1"], resource_url=None)
+
+    args, kwargs = mock_post.call_args
+    payload = kwargs['json']
+    blocks = payload.get('blocks', [])
+
+    # Find the first vote button and assert its value JSON contains the channel
+    vote_button_value = None
+    for b in blocks:
+        accessory = b.get('accessory') if isinstance(b, dict) else None
+        if accessory and accessory.get('type') == 'button' and str(accessory.get('action_id', '')).startswith('vote_next_topic_'):
+            vote_button_value = accessory.get('value')
+            break
+
+    assert vote_button_value, 'Expected a vote_next_topic button in blocks'
+    meta = json.loads(vote_button_value)
+    assert meta.get('channel') == coach_args['channel_id']

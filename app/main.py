@@ -445,6 +445,7 @@ Do not include markdown formatting (like ```json) in the response. Output raw JS
                         'message_id': message_id,
                         'topic': topic,
                         'job': self.job_name,
+                        'channel': self.slack_channel_id,
                         'date': self._get_today_date(),
                         'candidate': cand
                     })

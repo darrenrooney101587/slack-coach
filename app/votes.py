@@ -44,7 +44,12 @@ def record_vote(payload: dict, state_dir: str):
     except Exception:
         data = {}
 
-    key = str(payload.get('message_id') or payload.get('ts') or payload.get('topic'))
+    # Use a stable, per-message key. Falling back to topic can collide across days.
+    key = str(payload.get('message_id') or payload.get('ts') or '')
+    if not key:
+        # Last-resort fallback; should not happen in normal Slack interactive flows.
+        key = str(payload.get('topic') or '')
+
     entry = data.get(key, {
         'message_id': payload.get('message_id'),
         'topic': payload.get('topic'),
@@ -53,6 +58,19 @@ def record_vote(payload: dict, state_dir: str):
         'date': payload.get('date'),
         'votes': []
     })
+
+    # If this record already exists, keep the original message metadata unless it's missing.
+    if isinstance(entry, dict):
+        if not entry.get('message_id') and payload.get('message_id'):
+            entry['message_id'] = payload.get('message_id')
+        if not entry.get('topic') and payload.get('topic'):
+            entry['topic'] = payload.get('topic')
+        if not entry.get('job') and payload.get('job'):
+            entry['job'] = payload.get('job')
+        if not entry.get('channel') and payload.get('channel'):
+            entry['channel'] = payload.get('channel')
+        if not entry.get('date') and payload.get('date'):
+            entry['date'] = payload.get('date')
 
     existing = [v for v in entry['votes'] if v.get('user_id') == payload.get('user_id')]
     if existing:
@@ -182,10 +200,15 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
     except Exception:
         return None
 
+    if not isinstance(data, dict):
+        return None
 
     candidates_counts = {}
 
-    for key, entry in data.items():
+    for _key, entry in data.items():
+        if not isinstance(entry, dict):
+            continue
+
         if entry.get('date') != date:
             continue
 
@@ -195,7 +218,13 @@ def get_winning_next_topic(date: str, state_dir: str, job_filter: str = None, ch
         if channel_filter and entry.get('channel') != channel_filter:
             continue
 
-        for v in entry.get('votes', []):
+        votes_list = entry.get('votes', [])
+        if not isinstance(votes_list, list):
+            continue
+
+        for v in votes_list:
+            if not isinstance(v, dict):
+                continue
             if v.get('vote') == 'vote_next_topic' and v.get('candidate'):
                 cand = v.get('candidate')
                 candidates_counts[cand] = candidates_counts.get(cand, 0) + 1
