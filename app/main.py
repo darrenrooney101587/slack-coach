@@ -13,9 +13,12 @@ import time
 from environment import load_env
 
 try:
-    from votes import get_winning_next_topic
+    from app.votes import get_winning_next_topic
 except ImportError:
-    get_winning_next_topic = None
+    try:
+        from votes import get_winning_next_topic
+    except ImportError:
+        get_winning_next_topic = None
 
 logging.basicConfig(
     level=logging.INFO,

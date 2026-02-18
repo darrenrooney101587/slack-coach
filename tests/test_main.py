@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from app.main import DailyCoach
+import app.main as main_module
 
 @pytest.fixture
 def mock_env(monkeypatch):
@@ -36,6 +37,10 @@ def test_init_success(mock_env, coach_args):
     coach = DailyCoach(**coach_args)
     assert coach.aws_region == "us-east-1"
     assert coach.slack_mode == "webhook"
+
+
+def test_get_winning_next_topic_imported():
+    assert callable(main_module.get_winning_next_topic)
 
 @patch('app.main.boto3.client')
 def test_generate_content_success(mock_boto, mock_env, coach_args):
