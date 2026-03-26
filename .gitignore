@@ -10,4 +10,5 @@ state/
 *.txt
 *.csv
 *.json
+!.planning/**/*.json
 *.xml
