@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Route Fireflies meeting recaps to Slack channels with custom formatting and configurable routing
-**Current focus:** Phase 2 — Route
+**Current focus:** Phase 2 complete — Ready for Phase 3 (Deploy)
 
 ## Current Position
 
-Phase: 2 of 3 (Route)
-Plan: 02-01 and 02-02 complete
-Status: In progress
-Last activity: 2026-03-27 — Plan 02-01 complete
+Phase: 2 of 3 (Route) — COMPLETE
+Plan: 02-01, 02-02, 02-03 all complete
+Status: Phase 2 complete; Phase 3 next
+Last activity: 2026-03-27 — Plan 02-03 complete
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 2.8 min
-- Total execution time: 14 min
+- Total plans completed: 6
+- Average duration: 3.2 min
+- Total execution time: 19 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-receive-and-format | 3 | 7 min | 2.3 min |
-| 02-route | 2 | 7 min | 3.5 min |
+| 02-route | 3 | 12 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 1 min, 4 min, 4 min, 3 min
+- Last 5 plans: 1 min, 4 min, 4 min, 3 min, 5 min
 - Trend: variable
 
 ## Accumulated Context
@@ -53,6 +53,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 02-01: PyYAML version bumped from 6.0 to >=6.0.1 — 6.0 does not build on Python 3.14 (Cython extension issue)
 - 02-01: resolve_channel accepts config as parameter (not read internally) — keeps function pure and testable without file I/O
 - 02-01: Unknown match_field values silently skipped — allows forward-compatible config additions without crashes
+- 02-03: organizer_email added to GraphQL query so transcripts carry email for routing without extra fetch
+- 02-03: ROUTING_CONFIG_FILE defaults to /app/routing.yml (Docker path); operators override via env var
+- 02-03: _routing_config lazy singleton avoids file I/O per request while remaining monkeypatchable in tests
+- 02-03: Tests monkeypatch server.post_recap (not slack.post_recap) — server.py binds the name at import time
 
 ### Pending Todos
 
@@ -65,5 +69,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 02-01-PLAN.md — router.py with resolve_channel + load_routing_config, 12 unit tests passing
+Stopped at: Completed 02-03-PLAN.md — server.py wired with routing+posting; routing.yml template; 55 tests passing
 Resume file: None
