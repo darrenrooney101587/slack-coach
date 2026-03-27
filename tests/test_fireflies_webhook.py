@@ -208,3 +208,89 @@ def test_webhook_not_in_channel_returns_403(client, monkeypatch):
     assert resp.status_code == 403
     data = resp.get_json()
     assert data["error"] == "bot_not_in_channel"
+
+
+def _setup_review_common(monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
+    monkeypatch.setattr(server, "SLACK_BOT_TOKEN", "xoxb-test")
+
+
+def test_review_mode_holds_recap_and_returns_held(client, monkeypatch):
+    _setup_review_common(monkeypatch)
+    monkeypatch.setattr(server, "REVIEW_MODE", True)
+    monkeypatch.setattr(server, "REVIEWER_USER_ID", "U999")
+
+    from unittest.mock import MagicMock
+    mock_hold = MagicMock(return_value="recap-abc")
+    mock_send_dm = MagicMock(return_value=None)
+    mock_post = MagicMock()
+    monkeypatch.setattr(server, "hold_recap", mock_hold)
+    monkeypatch.setattr(server, "send_review_dm", mock_send_dm)
+    monkeypatch.setattr(server, "post_recap", mock_post)
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["held"] is True
+    assert data["recap_id"] == "recap-abc"
+    mock_post.assert_not_called()
+    mock_hold.assert_called_once()
+    mock_send_dm.assert_called_once()
+    assert mock_send_dm.call_args[1].get("reviewer_user_id") == "U999" or mock_send_dm.call_args[0][3] == "U999"
+    assert mock_send_dm.call_args[1].get("recap_id") == "recap-abc" or mock_send_dm.call_args[0][0] == "recap-abc"
+
+
+def test_review_mode_missing_reviewer_returns_500(client, monkeypatch):
+    _setup_review_common(monkeypatch)
+    monkeypatch.setattr(server, "REVIEW_MODE", True)
+    monkeypatch.setattr(server, "REVIEWER_USER_ID", "")
+
+    from unittest.mock import MagicMock
+    mock_hold = MagicMock()
+    monkeypatch.setattr(server, "hold_recap", mock_hold)
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 500
+    assert resp.get_json()["error"] == "no_reviewer_configured"
+    mock_hold.assert_not_called()
+
+
+def test_review_mode_dm_failure_returns_500(client, monkeypatch):
+    _setup_review_common(monkeypatch)
+    monkeypatch.setattr(server, "REVIEW_MODE", True)
+    monkeypatch.setattr(server, "REVIEWER_USER_ID", "U999")
+
+    from unittest.mock import MagicMock
+    monkeypatch.setattr(server, "hold_recap", MagicMock(return_value="recap-xyz"))
+    monkeypatch.setattr(server, "send_review_dm", MagicMock(side_effect=RuntimeError("dm_failed")))
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 500
+    assert resp.get_json()["error"] == "reviewer_dm_failed"
+
+
+def test_review_mode_false_posts_directly(client, monkeypatch):
+    _setup_review_common(monkeypatch)
+    monkeypatch.setattr(server, "REVIEW_MODE", False)
+
+    from unittest.mock import MagicMock
+    mock_post = MagicMock(return_value=None)
+    mock_hold = MagicMock()
+    monkeypatch.setattr(server, "post_recap", mock_post)
+    monkeypatch.setattr(server, "hold_recap", mock_hold)
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "held" not in data
+    mock_post.assert_called_once()
+    mock_hold.assert_not_called()
