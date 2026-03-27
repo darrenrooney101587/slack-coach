@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 
 ## Current Position
 
-Phase: 2 of 3 (Route) — COMPLETE
-Plan: 02-01, 02-02, 02-03 all complete
-Status: Phase 2 complete; Phase 3 next
-Last activity: 2026-03-27 — Plan 02-03 complete
+Phase: 3 of 3 (Review) — IN PROGRESS
+Plan: 03-01 complete; 03-02, 03-03 next
+Status: Phase 3 started; plan 03-01 done
+Last activity: 2026-03-27 — Plan 03-01 complete
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 3.2 min
-- Total execution time: 19 min
+- Total plans completed: 7
+- Average duration: 3.0 min
+- Total execution time: 21 min
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [███████░░░] 67%
 |-------|-------|-------|----------|
 | 01-receive-and-format | 3 | 7 min | 2.3 min |
 | 02-route | 3 | 12 min | 4.0 min |
+| 03-review | 1 | 2 min | 2.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 1 min, 4 min, 4 min, 3 min, 5 min
+- Last 5 plans: 4 min, 4 min, 3 min, 5 min, 2 min
 - Trend: variable
 
 ## Accumulated Context
@@ -57,6 +58,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 02-03: ROUTING_CONFIG_FILE defaults to /app/routing.yml (Docker path); operators override via env var
 - 02-03: _routing_config lazy singleton avoids file I/O per request while remaining monkeypatchable in tests
 - 02-03: Tests monkeypatch server.post_recap (not slack.post_recap) — server.py binds the name at import time
+- 03-01: pop_recap returns None without raising on missing recap_id — callers need not guard against exceptions
+- 03-01: No logger in review.py — module is simpler than votes.py; kept minimal per plan spec
 
 ### Pending Todos
 
@@ -69,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 02-03-PLAN.md — server.py wired with routing+posting; routing.yml template; 55 tests passing
+Stopped at: Completed 03-01-PLAN.md — app/review.py with hold_recap/pop_recap; 72 tests passing
 Resume file: None
