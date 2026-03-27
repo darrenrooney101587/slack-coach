@@ -1,0 +1,85 @@
+# Requirements: Slack Coach — Fireflies Integration
+
+**Defined:** 2026-03-26
+**Core Value:** Route Fireflies meeting recaps to Slack channels with custom formatting and configurable routing
+
+## v1 Requirements
+
+Requirements for initial release. Each maps to roadmap phases.
+
+### Webhook Receiver
+
+- [ ] **HOOK-01**: Middleware receives Fireflies webhook payloads at a dedicated endpoint
+- [ ] **HOOK-02**: Webhook payload is validated for required fields (summary, action items, transcript link)
+- [ ] **HOOK-03**: Webhook endpoint rejects malformed or unauthorized payloads
+
+### Formatting
+
+- [ ] **FMT-01**: Meeting recaps are transformed from Fireflies JSON into Slack Block Kit messages
+- [ ] **FMT-02**: Formatted messages include summary, action items, and transcript link sections
+- [ ] **FMT-03**: Formatting handles missing optional fields gracefully (no crashes on partial data)
+
+### Routing
+
+- [ ] **RTE-01**: Recaps are routed to specific Slack channels based on configurable rules
+- [ ] **RTE-02**: Bot can post to private channels when explicitly invited as a member
+- [ ] **RTE-03**: Routing configuration is manageable without code changes (config file or env vars)
+
+### Review
+
+- [ ] **REV-01**: Manual review mode holds recaps before posting to Slack
+- [ ] **REV-02**: Reviewer can approve or skip a held recap
+
+## v2 Requirements
+
+### Enhanced Routing
+
+- **RTE-04**: Route based on meeting participants or calendar metadata
+- **RTE-05**: Route based on meeting title keywords
+
+### Integration
+
+- **INT-01**: Slack Huddle auto-capture via Fireflies
+- **INT-02**: Dedicated #meeting-recaps channel auto-creation
+
+### Review
+
+- **REV-03**: Review queue with approval history and audit trail
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Direct Fireflies-to-Slack connection | This project is middleware, not a passthrough |
+| Real-time meeting transcription | Fireflies handles transcription externally |
+| Fireflies account provisioning | Assumes Fireflies account already exists |
+| Video recording or playback | Only text summaries and action items |
+| Custom AI summarization | Uses Fireflies' built-in AI notes |
+| Storage/logging of recap history | Not selected for v1 |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| HOOK-01 | — | Pending |
+| HOOK-02 | — | Pending |
+| HOOK-03 | — | Pending |
+| FMT-01 | — | Pending |
+| FMT-02 | — | Pending |
+| FMT-03 | — | Pending |
+| RTE-01 | — | Pending |
+| RTE-02 | — | Pending |
+| RTE-03 | — | Pending |
+| REV-01 | — | Pending |
+| REV-02 | — | Pending |
+
+**Coverage:**
+- v1 requirements: 11 total
+- Mapped to phases: 0
+- Unmapped: 11
+
+---
+*Requirements defined: 2026-03-26*
+*Last updated: 2026-03-26 after initial definition*
