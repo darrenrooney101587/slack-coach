@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Route Fireflies meeting recaps to Slack channels with custom formatting and configurable routing
-**Current focus:** Phase 2 complete — Ready for Phase 3 (Deploy)
+**Current focus:** Phase 3 in progress — 03-02 complete, 03-03 next
 
 ## Current Position
 
 Phase: 3 of 3 (Review) — IN PROGRESS
-Plan: 03-01 complete; 03-02, 03-03 next
-Status: Phase 3 started; plan 03-01 done
-Last activity: 2026-03-27 — Plan 03-01 complete
+Plan: 03-01, 03-02 complete; 03-03 next
+Status: Phase 3 in progress; plans 03-01 and 03-02 done
+Last activity: 2026-03-27 — Plan 03-02 complete
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 3.0 min
-- Total execution time: 21 min
+- Total execution time: 24 min
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [████████░░] 75%
 |-------|-------|-------|----------|
 | 01-receive-and-format | 3 | 7 min | 2.3 min |
 | 02-route | 3 | 12 min | 4.0 min |
-| 03-review | 1 | 2 min | 2.0 min |
+| 03-review | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 4 min, 4 min, 3 min, 5 min, 2 min
-- Trend: variable
+- Last 5 plans: 4 min, 3 min, 5 min, 2 min, 3 min
+- Trend: stable
 
 ## Accumulated Context
 
@@ -60,6 +60,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 02-03: Tests monkeypatch server.post_recap (not slack.post_recap) — server.py binds the name at import time
 - 03-01: pop_recap returns None without raising on missing recap_id — callers need not guard against exceptions
 - 03-01: No logger in review.py — module is simpler than votes.py; kept minimal per plan spec
+- 03-02: reviewer_user_id used directly as channel — no conversations.open call needed, Slack opens DM implicitly
+- 03-02: recap_id set as value on both buttons so action handler can identify recap without extra state
+- 03-02: RuntimeError message "Slack DM failed:" distinct from post_recap's "Slack API error:" for debugging
 
 ### Pending Todos
 
@@ -72,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 03-01-PLAN.md — app/review.py with hold_recap/pop_recap; 72 tests passing
+Stopped at: Completed 03-02-PLAN.md — send_review_dm in app/slack.py with approve/skip buttons; 72 tests passing
 Resume file: None
