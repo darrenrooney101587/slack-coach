@@ -7,7 +7,7 @@ Three phases deliver the Fireflies-to-Slack middleware pipeline. The first phase
 ## Phases
 
 - [x] **Phase 1: Receive and Format** - Webhook endpoint accepts Fireflies payloads and transforms them into Slack Block Kit messages (completed 2026-03-27)
-- [ ] **Phase 2: Route** - Formatted recaps are delivered to the correct Slack channels based on configurable routing rules
+- [x] **Phase 2: Route** - Formatted recaps are delivered to the correct Slack channels based on configurable routing rules (completed 2026-03-27)
 - [ ] **Phase 3: Review** - Manual review mode holds recaps for approval before they reach Slack
 
 ## Phase Details
@@ -60,5 +60,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Receive and Format | 0/3 | Complete    | 2026-03-27 |
-| 2. Route | 0/3 | Not started | - |
+| 2. Route | 0/3 | Complete    | 2026-03-27 |
 | 3. Review | 0/TBD | Not started | - |
