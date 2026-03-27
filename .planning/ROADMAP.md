@@ -36,7 +36,12 @@ Plans:
   1. A recap is posted to the channel specified by the routing configuration, not a hardcoded default
   2. A recap is successfully posted to a private channel after the bot has been invited to that channel
   3. Routing rules can be changed via config file or environment variable without modifying code
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — TDD for app/router.py (config loading + resolve_channel with all rule cases)
+- [ ] 02-02-PLAN.md — Implement app/slack.py (post_recap function) and unit tests
+- [ ] 02-03-PLAN.md — Wire router + poster into server.py, add organizer_email to GraphQL query, create routing.yml, extend integration tests
 
 ### Phase 3: Review
 **Goal**: Teams can hold recaps for human approval before they appear in Slack
@@ -55,5 +60,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Receive and Format | 0/3 | Complete    | 2026-03-27 |
-| 2. Route | 0/TBD | Not started | - |
+| 2. Route | 0/3 | Not started | - |
 | 3. Review | 0/TBD | Not started | - |
