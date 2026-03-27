@@ -6,6 +6,8 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from app.votes import record_vote, get_vote_counts, get_poll_details
+from app.review import pop_recap
+from app.slack import post_recap
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -292,6 +294,43 @@ def handle_vote_next_topic(ack, body, client, logger):
 
     except Exception as e:
         logger.error(f"Failed to update candidate votes: {e}", exc_info=True)
+
+def _update_dm_status(body, client, status_text: str):
+    channel_id = body.get("channel", {}).get("id")
+    ts = body.get("message", {}).get("ts")
+    if not (channel_id and ts):
+        return
+    client.chat_update(
+        channel=channel_id,
+        ts=ts,
+        blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": status_text}}],
+        text=status_text,
+    )
+
+
+@app.action("recap_approve")
+def handle_recap_approve(ack, body, client, logger):
+    ack()
+    recap_id = body["actions"][0]["value"]
+    entry = pop_recap(recap_id, STATE_DIR)
+    if not entry:
+        logger.warning(f"recap_approve: no held recap for id {recap_id}")
+        return
+    try:
+        post_recap(entry["blocks"], entry["channel_id"], SLACK_BOT_TOKEN)
+    except Exception as e:
+        logger.error(f"recap_approve: post_recap failed: {e}")
+        return
+    _update_dm_status(body, client, "Approved — posted to channel.")
+
+
+@app.action("recap_skip")
+def handle_recap_skip(ack, body, client, logger):
+    ack()
+    recap_id = body["actions"][0]["value"]
+    pop_recap(recap_id, STATE_DIR)
+    _update_dm_status(body, client, "Skipped — recap discarded.")
+
 
 if __name__ == "__main__":
     SocketModeHandler(app, SLACK_APP_TOKEN).start()
