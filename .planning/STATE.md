@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 1 of 3 (Receive and Format)
-Plan: 3 of TBD in current phase (01-01, 01-03 complete)
+Plan: all of TBD in current phase (01-01, 01-02, 01-03 complete)
 Status: In progress
-Last activity: 2026-03-27 — Plan 01-03 complete
+Last activity: 2026-03-27 — Plan 01-02 complete
 
-Progress: [██░░░░░░░░] 20%
+Progress: [███░░░░░░░] 30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 1.5 min
-- Total execution time: 3 min
+- Total plans completed: 3
+- Average duration: 2.3 min
+- Total execution time: 7 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-receive-and-format | 2 | 3 min | 1.5 min |
+| 01-receive-and-format | 3 | 7 min | 2.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 1 min
-- Trend: decreasing
+- Last 5 plans: 2 min, 1 min, 4 min
+- Trend: variable
 
 ## Accumulated Context
 
@@ -44,6 +44,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 01-01: Strip sha256= prefix in verify_fireflies_signature to handle both raw-hex and prefixed Fireflies signature headers
 - 01-01: format_recap omits empty optional sections (summary, action items, transcript link) for clean minimal output
 - 01-03: Use from app.formatter import (package-relative) in tests — conftest only adds project root to sys.path, not app/
+- 01-02: Tests import server (not app.server) by adding app/ to conftest.py sys.path — matches how server.py resolves bare module imports at runtime
+- 01-02: fetch_transcript must be mocked in any test that reaches the GraphQL fetch path to prevent live HTTP calls
 
 ### Pending Todos
 
@@ -56,5 +58,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 01-03-PLAN.md — tests/test_formatter.py created, 9 tests passing
+Stopped at: Completed 01-02-PLAN.md — /webhooks/fireflies route added to server.py, 8 integration tests passing
 Resume file: None
