@@ -5,8 +5,6 @@
 
 ## v1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
-
 ### Webhook Receiver
 
 - [ ] **HOOK-01**: Middleware receives Fireflies webhook payloads at a dedicated endpoint
@@ -63,23 +61,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-01 | — | Pending |
-| HOOK-02 | — | Pending |
-| HOOK-03 | — | Pending |
-| FMT-01 | — | Pending |
-| FMT-02 | — | Pending |
-| FMT-03 | — | Pending |
-| RTE-01 | — | Pending |
-| RTE-02 | — | Pending |
-| RTE-03 | — | Pending |
-| REV-01 | — | Pending |
-| REV-02 | — | Pending |
+| HOOK-01 | Phase 1 | Pending |
+| HOOK-02 | Phase 1 | Pending |
+| HOOK-03 | Phase 1 | Pending |
+| FMT-01 | Phase 1 | Pending |
+| FMT-02 | Phase 1 | Pending |
+| FMT-03 | Phase 1 | Pending |
+| RTE-01 | Phase 2 | Pending |
+| RTE-02 | Phase 2 | Pending |
+| RTE-03 | Phase 2 | Pending |
+| REV-01 | Phase 3 | Pending |
+| REV-02 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-26*
-*Last updated: 2026-03-26 after initial definition*
+*Last updated: 2026-03-26 after roadmap creation*
