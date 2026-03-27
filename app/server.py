@@ -7,11 +7,15 @@ import hashlib
 from flask import Flask, request, jsonify, abort
 
 from votes import record_vote
+from fireflies import verify_fireflies_signature, fetch_transcript
+from formatter import format_recap
 
 app = Flask(__name__)
 
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
 STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
+FIREFLIES_WEBHOOK_SECRET = os.environ.get("FIREFLIES_WEBHOOK_SECRET")
+FIREFLIES_API_KEY = os.environ.get("FIREFLIES_API_KEY")
 
 if not SLACK_SIGNING_SECRET:
     print('Warning: SLACK_SIGNING_SECRET is not set. Incoming Slack requests will not be verified.', file=sys.stderr)
@@ -92,6 +96,46 @@ def slack_actions():
         'replace_original': False,
         'text': response_text
     })
+
+
+@app.route("/webhooks/fireflies", methods=["POST"])
+def fireflies_webhook():
+    raw_body = request.get_data()
+
+    if FIREFLIES_WEBHOOK_SECRET:
+        sig = request.headers.get("x-hub-signature", "")
+        if not verify_fireflies_signature(FIREFLIES_WEBHOOK_SECRET, raw_body, sig):
+            abort(403)
+
+    try:
+        payload = json.loads(raw_body)
+    except (json.JSONDecodeError, ValueError):
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
+
+    meeting_id = payload.get("meetingId")
+    if not meeting_id:
+        return jsonify({"ok": False, "error": "missing_meetingId"}), 400
+
+    event_type = payload.get("eventType", "")
+    if event_type != "Transcription completed":
+        return jsonify({"ok": True, "skipped": True}), 200
+
+    if not FIREFLIES_API_KEY:
+        return jsonify({"ok": False, "error": "no_api_key"}), 500
+
+    transcript = fetch_transcript(meeting_id, FIREFLIES_API_KEY)
+
+    summary = transcript.get("summary") or {}
+    has_summary = any([
+        summary.get("overview"),
+        summary.get("bullet_gist"),
+        summary.get("action_items"),
+    ])
+    if not has_summary or not transcript.get("transcript_url"):
+        return jsonify({"ok": False, "error": "missing_required_fields"}), 422
+
+    blocks = format_recap(transcript)
+    return jsonify({"ok": True, "blocks": blocks}), 200
 
 
 if __name__ == '__main__':
