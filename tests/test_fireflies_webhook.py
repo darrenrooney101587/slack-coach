@@ -5,6 +5,7 @@ import json
 import pytest
 
 import server
+from slack import post_recap
 
 
 TEST_SECRET = "test-webhook-secret"
@@ -14,6 +15,7 @@ TEST_MEETING_ID = "meeting-abc-123"
 FULL_TRANSCRIPT = {
     "id": TEST_MEETING_ID,
     "title": "Team Standup",
+    "organizer_email": "alice@example.com",
     "transcript_url": "https://app.fireflies.ai/view/meeting-abc-123",
     "participants": ["alice@example.com", "bob@example.com"],
     "summary": {
@@ -49,6 +51,10 @@ def _post_with_signature(client, body: bytes, secret: str = TEST_SECRET, event_t
 
 def test_valid_transcription_completed_returns_200_with_blocks(client, monkeypatch):
     monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
+    monkeypatch.setattr(server, "SLACK_BOT_TOKEN", "xoxb-test")
+    calls = []
+    monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: calls.append((blocks, channel, token)))
 
     body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
     resp = _post_with_signature(client, body)
@@ -56,8 +62,6 @@ def test_valid_transcription_completed_returns_200_with_blocks(client, monkeypat
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["ok"] is True
-    assert isinstance(data["blocks"], list)
-    assert len(data["blocks"]) > 0
 
 
 def test_invalid_signature_returns_403(client):
@@ -150,3 +154,57 @@ def test_no_signature_verification_when_secret_not_configured(monkeypatch):
         )
 
     assert resp.status_code != 403
+
+
+def test_webhook_posts_to_slack_and_returns_200(client, monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
+    monkeypatch.setattr(server, "SLACK_BOT_TOKEN", "xoxb-test")
+    calls = []
+    monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: calls.append((blocks, channel, token)))
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert len(calls) == 1
+    assert calls[0][1] == "CTEST001"
+
+
+def test_webhook_no_routing_target_returns_500(client, monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {})
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 500
+    assert resp.get_json()["error"] == "no_routing_target"
+
+
+def test_webhook_no_bot_token_returns_500(client, monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
+    monkeypatch.setattr(server, "SLACK_BOT_TOKEN", None)
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 500
+    assert resp.get_json()["error"] == "no_bot_token"
+
+
+def test_webhook_not_in_channel_returns_403(client, monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
+    monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
+    monkeypatch.setattr(server, "SLACK_BOT_TOKEN", "xoxb-test")
+    monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: (_ for _ in ()).throw(RuntimeError("Slack API error: not_in_channel")))
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 403
+    data = resp.get_json()
+    assert data["error"] == "bot_not_in_channel"

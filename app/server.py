@@ -9,6 +9,8 @@ from flask import Flask, request, jsonify, abort
 from votes import record_vote
 from fireflies import verify_fireflies_signature, fetch_transcript
 from formatter import format_recap
+from router import resolve_channel, load_routing_config
+from slack import post_recap
 
 app = Flask(__name__)
 
@@ -16,9 +18,24 @@ SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
 STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
 FIREFLIES_WEBHOOK_SECRET = os.environ.get("FIREFLIES_WEBHOOK_SECRET")
 FIREFLIES_API_KEY = os.environ.get("FIREFLIES_API_KEY")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+ROUTING_CONFIG_FILE = os.environ.get("ROUTING_CONFIG_FILE", "/app/routing.yml")
 
 if not SLACK_SIGNING_SECRET:
     print('Warning: SLACK_SIGNING_SECRET is not set. Incoming Slack requests will not be verified.', file=sys.stderr)
+
+_routing_config = None
+
+
+def _get_routing_config():
+    global _routing_config
+    if _routing_config is None:
+        try:
+            _routing_config = load_routing_config(ROUTING_CONFIG_FILE)
+        except Exception as e:
+            app.logger.error(f"Failed to load routing config: {e}")
+            _routing_config = {}
+    return _routing_config
 
 
 def verify_slack_request(req):
@@ -135,7 +152,25 @@ def fireflies_webhook():
         return jsonify({"ok": False, "error": "missing_required_fields"}), 422
 
     blocks = format_recap(transcript)
-    return jsonify({"ok": True, "blocks": blocks}), 200
+    config = _get_routing_config()
+    channel_id = resolve_channel(transcript, config)
+
+    if not channel_id:
+        return jsonify({"ok": False, "error": "no_routing_target"}), 500
+
+    if not SLACK_BOT_TOKEN:
+        return jsonify({"ok": False, "error": "no_bot_token"}), 500
+
+    try:
+        post_recap(blocks, channel_id, SLACK_BOT_TOKEN)
+    except RuntimeError as e:
+        error_str = str(e)
+        if "not_in_channel" in error_str:
+            return jsonify({"ok": False, "error": "bot_not_in_channel", "channel": channel_id}), 403
+        app.logger.error(f"Slack posting failed: {e}")
+        return jsonify({"ok": False, "error": "slack_post_failed"}), 500
+
+    return jsonify({"ok": True}), 200
 
 
 if __name__ == '__main__':
