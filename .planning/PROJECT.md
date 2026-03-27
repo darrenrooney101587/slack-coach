@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Slack bot that generates and delivers daily coaching tips using Claude/Bedrock, with interactive voting for topic selection. Supports multi-channel, multi-coach deployments via webhook or bot token modes, with file-based state for deduplication and vote tracking. Now expanding to integrate Fireflies.ai meeting recaps into Slack channels.
+A Slack bot that delivers daily coaching tips (via Claude/Bedrock) and Fireflies.ai meeting recaps to Slack channels. Supports multi-channel deployments with interactive voting, config-driven recap routing, and optional human-in-the-loop review before posting.
 
 ## Core Value
 
@@ -21,14 +21,19 @@ Deliver timely, relevant coaching content and meeting recaps to Slack channels w
 - ✓ Flask server for webhook-based interactive callbacks — existing
 - ✓ Cron-based scheduling with configurable schedule — existing
 - ✓ Docker multi-mode deployment (job/server/cron/socket) — existing
+- ✓ Fireflies webhook receiver with HMAC signature verification — v1.0
+- ✓ GraphQL transcript fetching from Fireflies API — v1.0
+- ✓ Block Kit formatter for meeting recaps (summary, action items, transcript link) — v1.0
+- ✓ Graceful handling of missing optional fields in transcripts — v1.0
+- ✓ Config-driven channel routing via YAML rules (title/email match) — v1.0
+- ✓ Private channel posting when bot is invited — v1.0
+- ✓ Routing configuration manageable without code changes — v1.0
+- ✓ Manual review mode holding recaps before posting — v1.0
+- ✓ Reviewer approve/skip via Slack DM with interactive buttons — v1.0
 
 ### Active
 
-- [ ] Slack workspace preparation for meeting recaps (dedicated channel, bot membership)
-- [ ] Standard Fireflies-to-Slack integration (OAuth connect, default channel, auto-send)
-- [ ] Custom webhook workflow for advanced formatting and multi-channel routing
-- [ ] Human-in-the-loop review workflow (disable auto-send, manual push after review)
-- [ ] Slack Huddle capture support via Fireflies
+(None yet — planning next milestone)
 
 ### Out of Scope
 
@@ -36,29 +41,34 @@ Deliver timely, relevant coaching content and meeting recaps to Slack channels w
 - Fireflies account provisioning — assumes Fireflies account exists
 - Video recording or playback — only text summaries and action items
 - Custom AI summarization — uses Fireflies' built-in AI notes
+- Direct Fireflies-to-Slack connection — this project is middleware
+- Slack Huddle auto-capture — deferred to v2
+- Recap storage/logging — deferred to v2
+- Review queue with audit trail — deferred to v2
 
 ## Context
 
-- Fireflies.ai is an external meeting transcription and summarization service
-- Integration is primarily configuration-driven (Fireflies dashboard + Slack app setup)
-- Two integration paths: standard app connect (simple) and custom webhooks (advanced)
-- The existing slack-coach codebase already has webhook and bot token patterns that can be extended
-- Slack Huddles are short voice calls within Slack — Fireflies can auto-capture these if enabled
+Shipped v1.0 with 3,296 LOC Python across 79 tests. Tech stack: Flask, slack-bolt, requests, PyYAML, boto3. Fireflies integration is middleware — receives webhook triggers, fetches transcripts via GraphQL, formats as Block Kit, routes to channels via YAML config. Optional review mode holds recaps for human approval via Slack DM.
+
+Deployment note: `routing.yml` must be explicitly copied into Docker container or mounted — the existing Dockerfile only copies `app/`.
 
 ## Constraints
 
 - **External Dependency**: Fireflies.ai must be configured separately — this project handles the Slack-side integration
 - **Private Channels**: Bot must be explicitly invited to private channels before it can post recaps
-- **Webhook Security**: Incoming webhooks from Fireflies need validation to prevent spoofing
-- **Auto-Pause Caveat**: Fireflies auto-send only works if enabled in integration settings; manual workflow requires disabling it
+- **Webhook Security**: HMAC SHA-256 signature verification on all incoming Fireflies webhooks
+- **Fireflies API**: Webhook body is thin (meetingId only); transcript content requires separate GraphQL fetch
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Support both standard and webhook integration paths | Standard is simpler for basic use; webhooks enable custom formatting and multi-channel routing | -- Pending |
-| Include human-in-the-loop as explicit workflow | Some teams need to vet AI-generated recaps before sharing publicly | -- Pending |
-| Dedicated #meeting-recaps channel | Avoids cluttering existing channels with high-volume recap messages | -- Pending |
+| Middleware architecture (not direct Fireflies-to-Slack) | Enables custom formatting, multi-channel routing, and review gate | ✓ Good |
+| Two-step fetch (webhook trigger + GraphQL) | Fireflies webhook body only contains meetingId; content requires separate API call | ✓ Good |
+| YAML-based routing config | Operators can change routing without code changes; follows existing curriculum_file pattern | ✓ Good |
+| File-based JSON state for review hold | Matches existing votes.py pattern; no new infrastructure needed | ✓ Good |
+| Bolt action handlers for approve/skip | socket_server.py already has interactive button handling; Flask cannot do chat_update | ✓ Good |
+| pop_recap atomic read+delete for idempotency | Prevents double-posting on reviewer double-click | ✓ Good |
 
 ---
-*Last updated: 2026-03-26 after initialization*
+*Last updated: 2026-03-27 after v1.0 milestone*

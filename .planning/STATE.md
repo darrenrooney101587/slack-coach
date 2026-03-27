@@ -2,17 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-26)
+See: .planning/PROJECT.md (updated 2026-03-27)
 
-**Core value:** Route Fireflies meeting recaps to Slack channels with custom formatting and configurable routing
-**Current focus:** Phase 3 complete — all plans done
+**Core value:** Deliver timely, relevant coaching content and meeting recaps to Slack channels with minimal friction and maximum team visibility
+**Current focus:** v1.0 complete — between milestones
 
 ## Current Position
 
-Phase: 3 of 3 (Review) — COMPLETE
-Plan: 03-01, 03-02, 03-03 complete
-Status: All phases complete
-Last activity: 2026-03-27 — Plan 03-03 complete
+Phase: All complete
+Plan: —
+Status: Between milestones
+Last activity: 2026-03-27 — v1.0 Fireflies Integration shipped
 
 Progress: [██████████] 100%
 
@@ -31,52 +31,23 @@ Progress: [██████████] 100%
 | 02-route | 3 | 12 min | 4.0 min |
 | 03-review | 3 | 51 min | 17.0 min |
 
-**Recent Trend:**
-- Last 5 plans: 3 min, 5 min, 2 min, 3 min, 46 min
-- Trend: stable (03-03 was larger scope — 3 tasks across 4 files)
-
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-
-- Initialization: Phases derived from 4 requirement categories compressed to 3 phases (quick depth)
-- Phase 1 merges Webhook Receiver and Formatting — both are pipeline entry concerns with no routing dependency
-- 01-01: Strip sha256= prefix in verify_fireflies_signature to handle both raw-hex and prefixed Fireflies signature headers
-- 01-01: format_recap omits empty optional sections (summary, action items, transcript link) for clean minimal output
-- 01-03: Use from app.formatter import (package-relative) in tests — conftest only adds project root to sys.path, not app/
-- 01-02: Tests import server (not app.server) by adding app/ to conftest.py sys.path — matches how server.py resolves bare module imports at runtime
-- 01-02: fetch_transcript must be mocked in any test that reaches the GraphQL fetch path to prevent live HTTP calls
-- 02-02: post_recap raises RuntimeError (not Exception) so callers can specifically catch Slack API errors
-- 02-02: raise_for_status() called before response.json() — HTTPError and Slack API errors are distinct failure modes
-- 02-02: bot_token passed as argument to post_recap (not env read) — keeps slack.py stateless and fully testable
-- 02-01: PyYAML version bumped from 6.0 to >=6.0.1 — 6.0 does not build on Python 3.14 (Cython extension issue)
-- 02-01: resolve_channel accepts config as parameter (not read internally) — keeps function pure and testable without file I/O
-- 02-01: Unknown match_field values silently skipped — allows forward-compatible config additions without crashes
-- 02-03: organizer_email added to GraphQL query so transcripts carry email for routing without extra fetch
-- 02-03: ROUTING_CONFIG_FILE defaults to /app/routing.yml (Docker path); operators override via env var
-- 02-03: _routing_config lazy singleton avoids file I/O per request while remaining monkeypatchable in tests
-- 02-03: Tests monkeypatch server.post_recap (not slack.post_recap) — server.py binds the name at import time
-- 03-01: pop_recap returns None without raising on missing recap_id — callers need not guard against exceptions
-- 03-01: No logger in review.py — module is simpler than votes.py; kept minimal per plan spec
-- 03-02: reviewer_user_id used directly as channel — no conversations.open call needed, Slack opens DM implicitly
-- 03-02: recap_id set as value on both buttons so action handler can identify recap without extra state
-- 03-02: RuntimeError message "Slack DM failed:" distinct from post_recap's "Slack API error:" for debugging
-- 03-03: monkeypatch used for per-test REVIEW_MODE flag control — auto-restores after each test, no teardown needed
-- 03-03: Bolt App token_verification_enabled patched at slack_bolt.App.__init__ level to allow test imports without live credentials
-- 03-03: sys.modules cleanup scoped to exact module keys to avoid pytest collection KeyError
+See PROJECT.md Key Decisions table for full list.
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- Bot must be explicitly invited to any private channel before Phase 2 routing to private channels works
+- Bot must be explicitly invited to any private channel before routing works
+- routing.yml must be copied into Docker container or mounted (not covered by existing Dockerfile)
 
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 03-03-PLAN.md — review gate wired into server.py and socket_server.py; 79 tests passing; all phases complete
+Stopped at: v1.0 milestone archived
 Resume file: None
