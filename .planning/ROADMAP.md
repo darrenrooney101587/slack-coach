@@ -21,7 +21,12 @@ Three phases deliver the Fireflies-to-Slack middleware pipeline. The first phase
   2. A POST with missing required fields (summary, action items, transcript link) is rejected with a non-200 response
   3. A POST with no authorization or a bad signature is rejected before any processing occurs
   4. A payload with optional fields omitted still produces a valid Block Kit message without errors
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Create app/fireflies.py (HMAC verify + GraphQL fetch) and app/formatter.py (pure Block Kit formatter)
+- [ ] 01-02-PLAN.md — Register /webhooks/fireflies route in server.py and write integration tests
+- [ ] 01-03-PLAN.md — TDD unit tests for format_recap formatter function
 
 ### Phase 2: Route
 **Goal**: Formatted recaps reach the intended Slack channels without hardcoded channel names
@@ -49,6 +54,6 @@ Three phases deliver the Fireflies-to-Slack middleware pipeline. The first phase
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Receive and Format | 0/TBD | Not started | - |
+| 1. Receive and Format | 0/3 | Not started | - |
 | 2. Route | 0/TBD | Not started | - |
 | 3. Review | 0/TBD | Not started | - |
