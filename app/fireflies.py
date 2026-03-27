@@ -24,6 +24,7 @@ def fetch_transcript(meeting_id: str, api_key: str) -> dict:
         transcript(id: $id) {
             id
             title
+            organizer_email
             transcript_url
             participants
             summary {

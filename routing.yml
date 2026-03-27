@@ -1,0 +1,12 @@
+# All channel values must be Slack channel IDs (e.g. C0123456789).
+# Channel names cause channel_not_found for private channels.
+# Bot must be invited to any private channel before routing to it.
+default_channel: "CDEFAULT000"
+
+rules:
+  - match_field: "organizer_email"
+    pattern: "@example.com"
+    channel: "CEXAMPLE001"
+  - match_field: "title"
+    pattern: "design review"
+    channel: "CDESIGN0001"
