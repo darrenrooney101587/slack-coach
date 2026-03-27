@@ -51,7 +51,12 @@ Plans:
   1. When review mode is enabled, an incoming recap is held and does not post to Slack automatically
   2. A reviewer can approve a held recap and it posts to the intended channel
   3. A reviewer can skip a held recap and it is discarded without posting
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — TDD for app/review.py (hold_recap / pop_recap file-backed state)
+- [ ] 03-02-PLAN.md — Add send_review_dm to app/slack.py with unit tests
+- [ ] 03-03-PLAN.md — Wire review gate into server.py and socket_server.py; integration tests
 
 ## Progress
 
@@ -61,4 +66,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Receive and Format | 0/3 | Complete    | 2026-03-27 |
 | 2. Route | 0/3 | Complete    | 2026-03-27 |
-| 3. Review | 0/TBD | Not started | - |
+| 3. Review | 0/3 | Not started | - |
