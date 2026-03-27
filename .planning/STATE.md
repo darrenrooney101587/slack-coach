@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 2 of 3 (Route)
-Plan: 02-02 complete (02-01 in TDD red phase, 02-02 complete)
+Plan: 02-01 and 02-02 complete
 Status: In progress
-Last activity: 2026-03-27 — Plan 02-02 complete
+Last activity: 2026-03-27 — Plan 02-01 complete
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 2.5 min
-- Total execution time: 11 min
+- Total plans completed: 5
+- Average duration: 2.8 min
+- Total execution time: 14 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-receive-and-format | 3 | 7 min | 2.3 min |
-| 02-route | 1 | 4 min | 4 min |
+| 02-route | 2 | 7 min | 3.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 1 min, 4 min, 4 min
+- Last 5 plans: 2 min, 1 min, 4 min, 4 min, 3 min
 - Trend: variable
 
 ## Accumulated Context
@@ -50,6 +50,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 02-02: post_recap raises RuntimeError (not Exception) so callers can specifically catch Slack API errors
 - 02-02: raise_for_status() called before response.json() — HTTPError and Slack API errors are distinct failure modes
 - 02-02: bot_token passed as argument to post_recap (not env read) — keeps slack.py stateless and fully testable
+- 02-01: PyYAML version bumped from 6.0 to >=6.0.1 — 6.0 does not build on Python 3.14 (Cython extension issue)
+- 02-01: resolve_channel accepts config as parameter (not read internally) — keeps function pure and testable without file I/O
+- 02-01: Unknown match_field values silently skipped — allows forward-compatible config additions without crashes
 
 ### Pending Todos
 
@@ -62,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 02-02-PLAN.md — post_recap in app/slack.py, 6 unit tests passing
+Stopped at: Completed 02-01-PLAN.md — router.py with resolve_channel + load_routing_config, 12 unit tests passing
 Resume file: None
