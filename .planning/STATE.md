@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Route Fireflies meeting recaps to Slack channels with custom formatting and configurable routing
-**Current focus:** Phase 1 — Receive and Format
+**Current focus:** Phase 2 — Route
 
 ## Current Position
 
-Phase: 1 of 3 (Receive and Format)
-Plan: all of TBD in current phase (01-01, 01-02, 01-03 complete)
+Phase: 2 of 3 (Route)
+Plan: 02-02 complete (02-01 in TDD red phase, 02-02 complete)
 Status: In progress
-Last activity: 2026-03-27 — Plan 01-02 complete
+Last activity: 2026-03-27 — Plan 02-02 complete
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 2.3 min
-- Total execution time: 7 min
+- Total plans completed: 4
+- Average duration: 2.5 min
+- Total execution time: 11 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-receive-and-format | 3 | 7 min | 2.3 min |
+| 02-route | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 1 min, 4 min
+- Last 5 plans: 2 min, 1 min, 4 min, 4 min
 - Trend: variable
 
 ## Accumulated Context
@@ -46,6 +47,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 01-03: Use from app.formatter import (package-relative) in tests — conftest only adds project root to sys.path, not app/
 - 01-02: Tests import server (not app.server) by adding app/ to conftest.py sys.path — matches how server.py resolves bare module imports at runtime
 - 01-02: fetch_transcript must be mocked in any test that reaches the GraphQL fetch path to prevent live HTTP calls
+- 02-02: post_recap raises RuntimeError (not Exception) so callers can specifically catch Slack API errors
+- 02-02: raise_for_status() called before response.json() — HTTPError and Slack API errors are distinct failure modes
+- 02-02: bot_token passed as argument to post_recap (not env read) — keeps slack.py stateless and fully testable
 
 ### Pending Todos
 
@@ -58,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 01-02-PLAN.md — /webhooks/fireflies route added to server.py, 8 integration tests passing
+Stopped at: Completed 02-02-PLAN.md — post_recap in app/slack.py, 6 unit tests passing
 Resume file: None
