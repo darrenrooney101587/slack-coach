@@ -20,27 +20,6 @@ services:
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
 
-  coach-cron:
-    build: .
-    image: slack-coach:latest
-    container_name: slack_coach_cron
-    env_file:
-      - .env
-    environment:
-      - RUN_MODE=cron
-      - STATE_DIR=/state
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      # include image URL for scheduled posts too
-      - SLACK_COACH_IMAGE_URL=${SLACK_COACH_IMAGE_URL}
-    volumes:
-      - "${HOST_STATE_DIR:-./state}:/state:rw"
-    restart: unless-stopped
-    # Cron needs permission to write /var/run/crond.pid. Run as root by default but
-    # make this configurable via CRON_USER/CRON_GROUP in your .env (e.g. CRON_USER=0 CRON_GROUP=0)
-    user: "${CRON_USER:-0}:${CRON_GROUP:-0}"
-
   coach-socket:
     build: .
     image: slack-coach:latest

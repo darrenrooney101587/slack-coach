@@ -4,7 +4,6 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
-    cron \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -25,7 +24,7 @@ RUN poetry config virtualenvs.create false \
 COPY app/ ./app/
 COPY environment.py /app/
 COPY routing.yml /app/
-RUN chmod +x /app/app/entrypoint.sh /app/app/cron-runner.sh
+RUN chmod +x /app/app/entrypoint.sh
 # Create a top-level /state directory that we will mount from the host. Keep state
 # outside of /app for clarity and to match the .env you mentioned (STATE_DIR=/state).
 RUN mkdir -p /state && chown -R appuser:appuser /state

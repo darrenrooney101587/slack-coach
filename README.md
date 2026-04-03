@@ -11,7 +11,7 @@ Fireflies-to-Slack meeting recap pipeline. When a meeting ends, Fireflies posts 
 │   ├── formatter.py      # Slack Block Kit formatter
 │   ├── router.py         # routing.yml evaluation logic
 │   ├── slack.py          # Slack chat.postMessage wrapper
-│   └── entrypoint.sh     # Container mode selector (server / socket / cron / job)
+│   └── entrypoint.sh     # Container mode selector (server / socket)
 ├── routing.yml           # Channel routing rules
 ├── docker-compose.yml    # Service definitions
 ├── Dockerfile
@@ -72,9 +72,7 @@ docker build -t slack-coach:latest .
 docker compose up -d coach-server
 ```
 
-The other services in `docker-compose.yml` are for separate features:
-- `coach-socket` — Slack Socket Mode server (review mode approvals)
-- `coach-cron` — scheduled daily tips job (unrelated to Fireflies)
+`coach-socket` is for Slack Socket Mode (review mode approvals) and can be started alongside `coach-server` if review mode is enabled.
 
 ## How It Works
 

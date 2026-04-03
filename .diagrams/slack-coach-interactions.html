@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slack Coach — Interaction Processes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-display: 'Sora', system-ui, sans-serif;
+    --font-body: 'Sora', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --bg: #f0ede8;
+    --surface: rgba(255, 255, 255, 0.92);
+    --surface-2: #e6e2da;
+    --surface-3: #d9d3c8;
+    --text: #111111;
+    --text-dim: #5c564f;
+    --border: rgba(17, 17, 17, 0.12);
+    --border-strong: rgba(17, 17, 17, 0.22);
+    --accent: #1340ff;
+    --accent-soft: rgba(19, 64, 255, 0.11);
+    --signal: #cef03e;
+    --signal-soft: rgba(206, 240, 62, 0.18);
+    --alert: #ff5c2b;
+    --alert-soft: rgba(255, 92, 43, 0.13);
+    --plum: #7040ff;
+    --plum-soft: rgba(112, 64, 255, 0.12);
+    --teal: #0fa889;
+    --teal-soft: rgba(15, 168, 137, 0.12);
+    --code: #b42318;
+    --code-soft: rgba(180, 35, 24, 0.10);
+    --code-border: rgba(180, 35, 24, 0.22);
+    --strip-bg: rgba(255, 255, 255, 0.86);
+    --chip-bg: rgba(17, 17, 17, 0.03);
+    --shadow: 8px 8px 0 rgba(17, 17, 17, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1117;
+      --surface: rgba(20, 23, 32, 0.94);
+      --surface-2: #181d29;
+      --surface-3: #20273a;
+      --text: #f0f1f5;
+      --text-dim: #9ba3b2;
+      --border: rgba(240, 241, 245, 0.08);
+      --border-strong: rgba(240, 241, 245, 0.16);
+      --accent: #7fa2ff;
+      --accent-soft: rgba(127, 162, 255, 0.15);
+      --signal: #d2ff5c;
+      --signal-soft: rgba(210, 255, 92, 0.14);
+      --alert: #ff7a52;
+      --alert-soft: rgba(255, 122, 82, 0.15);
+      --plum: #b89eff;
+      --plum-soft: rgba(184, 158, 255, 0.14);
+      --teal: #30d4ae;
+      --teal-soft: rgba(48, 212, 174, 0.13);
+      --code: #ff7b72;
+      --code-soft: rgba(255, 123, 114, 0.13);
+      --code-border: rgba(255, 123, 114, 0.24);
+      --strip-bg: rgba(14, 17, 23, 0.94);
+      --chip-bg: rgba(240, 241, 245, 0.04);
+      --shadow: 8px 8px 0 rgba(0, 0, 0, 0.28);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: 28px;
+    min-height: 100vh;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+    transition: opacity 0.14s ease;
+  }
+  a:hover { opacity: 0.78; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate {
+    animation: rise 0.32s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.045s);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .page-shell { max-width: 1200px; margin: 0 auto; }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) 300px;
+    gap: 14px;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-main, .hero-side {
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .hero-main { padding: 26px; }
+  .hero-side { padding: 18px; }
+
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border: 1px solid var(--border-strong);
+    background: var(--signal-soft);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(2rem, 5.5vw, 2.7rem);
+    line-height: 0.97;
+    letter-spacing: -0.035em;
+    margin-bottom: 12px;
+    max-width: 12ch;
+  }
+
+  .subtitle {
+    font-size: 14.5px;
+    line-height: 1.78;
+    color: var(--text-dim);
+    max-width: 720px;
+    margin-bottom: 18px;
+  }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 11px;
+    border: 1px solid var(--border);
+    background: var(--chip-bg);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mini-title {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 11px;
+  }
+
+  .stat-list { display: grid; gap: 9px; }
+
+  .stat {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 10px;
+    padding: 11px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .stat-value {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .stat-copy {
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+
+  .stat-copy code {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border: 1px solid var(--code-border);
+    background: var(--code-soft);
+    color: var(--code);
+  }
+
+  /* ── Control strip nav ────────────────────── */
+  .control-strip {
+    position: sticky;
+    top: 12px;
+    z-index: 60;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 9px;
+    margin-bottom: 16px;
+    background: var(--strip-bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+  }
+  .control-strip::-webkit-scrollbar { display: none; }
+
+  .control-strip a {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 13px;
+    border: 1px solid var(--border);
+    background: var(--chip-bg);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease;
+  }
+  .control-strip a span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 5px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .control-strip a:hover { transform: translateY(-1px); color: var(--text); }
+  .control-strip a.active {
+    background: var(--accent-soft);
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  /* ── Panel ────────────────────────────────── */
+  .panel {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    padding: 24px;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin-bottom: 13px;
+  }
+
+  .panel-index {
+    --pi-accent: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border-strong);
+    border-left: 4px solid var(--pi-accent);
+    background: var(--surface-2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  .pi--blue  { --pi-accent: var(--accent); }
+  .pi--signal { --pi-accent: #5a8a1a; }
+  .pi--alert { --pi-accent: var(--alert); }
+  .pi--plum  { --pi-accent: var(--plum); }
+  .pi--teal  { --pi-accent: var(--teal); }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.4rem, 2.8vw, 1.62rem);
+    line-height: 1.05;
+    letter-spacing: -0.028em;
+  }
+
+  .description {
+    font-size: 14.5px;
+    line-height: 1.82;
+    color: var(--text-dim);
+    max-width: 860px;
+    margin-bottom: 16px;
+  }
+  .description strong { color: var(--text); }
+
+  .description code, .callout code, .data-table code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border: 1px solid var(--code-border);
+    background: var(--code-soft);
+    color: var(--code);
+  }
+
+  .callout {
+    margin-top: 14px;
+    padding: 13px 15px;
+    border-left: 7px solid var(--signal);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font-size: 13.5px;
+    line-height: 1.78;
+  }
+  .callout strong { color: var(--text); }
+
+  .callout--alert {
+    border-left-color: var(--alert);
+  }
+  .callout--plum {
+    border-left-color: var(--plum);
+  }
+
+  /* ── Mermaid ──────────────────────────────── */
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    padding: 28px 22px;
+    overflow: auto;
+    margin-bottom: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .mermaid-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
+  .mermaid-wrap::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .mermaid-wrap .mermaid {
+    display: flex;
+    justify-content: center;
+    transition: transform 0.2s ease;
+    transform-origin: top center;
+    min-width: max-content;
+  }
+
+  .zoom-controls {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    display: flex;
+    gap: 5px;
+    z-index: 10;
+  }
+  .zoom-controls button {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.13s ease, background 0.13s ease;
+  }
+  .zoom-controls button:hover {
+    transform: translateY(-1px);
+    background: var(--signal-soft);
+    color: var(--text);
+  }
+
+  .mermaid-wrap.is-zoomed { cursor: grab; }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+
+  .mermaid .nodeLabel,
+  .mermaid .label text,
+  .mermaid .cluster-label text,
+  .mermaid .messageText {
+    font-family: var(--font-body) !important;
+    font-size: 14px !important;
+    fill: var(--text) !important;
+    color: var(--text) !important;
+  }
+  .mermaid .nodeLabel p, .mermaid .nodeLabel span,
+  .mermaid .label p, .mermaid .label span, .mermaid .label div {
+    color: var(--text) !important;
+  }
+  .mermaid .edgeLabel, .mermaid .edgeLabel text {
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    fill: var(--text-dim) !important;
+    color: var(--text-dim) !important;
+  }
+  .mermaid .edgeLabel p, .mermaid .edgeLabel span, .mermaid .edgeLabel div {
+    color: var(--text-dim) !important;
+  }
+  .mermaid .edgeLabel rect { fill: var(--surface-2) !important; opacity: 1 !important; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 2px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.75px !important; }
+
+  /* ── Legend ───────────────────────────────── */
+  .legend { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 10px; }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    background: var(--chip-bg);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .swatch { width: 9px; height: 9px; }
+
+  /* ── Data table ───────────────────────────── */
+  .table-wrap {
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .data-table thead { position: sticky; top: 0; z-index: 1; }
+  .data-table th {
+    background: var(--surface-2);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 13px 15px;
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 13px 15px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .data-table tbody tr:nth-child(even) { background: rgba(17,17,17,0.022); }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table small { display: block; color: var(--text-dim); margin-top: 3px; }
+
+  @media (max-width: 860px) {
+    body { padding: 14px; }
+    .hero { grid-template-columns: 1fr; }
+    .hero-main, .hero-side, .panel { padding: 17px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-shell">
+
+  <!-- ── Hero ────────────────────────────────────── -->
+  <header class="hero animate" style="--i:0">
+    <div class="hero-main">
+      <div class="stamp">Socket Mode · Bolt SDK · State-file storage</div>
+      <h1>Slack Coach Interactions</h1>
+      <p class="subtitle">
+        Three distinct interaction flows handled by <code>socket_server.py</code> over a persistent WebSocket connection:
+        recap review approval, message feedback voting, and next-topic poll voting.
+        All state is persisted to local JSON files in <code>STATE_DIR</code>.
+      </p>
+      <div class="tag-row">
+        <span class="tag">slack-bolt</span>
+        <span class="tag">socket mode</span>
+        <span class="tag">review mode</span>
+        <span class="tag">thumbs up/down</span>
+        <span class="tag">topic poll</span>
+        <span class="tag">json state files</span>
+      </div>
+    </div>
+    <aside class="hero-side">
+      <div class="mini-title">Quick read</div>
+      <div class="stat-list">
+        <div class="stat">
+          <div class="stat-value">1x</div>
+          <div class="stat-copy">Single WebSocket connection via Socket Mode — if <code>coach-socket</code> is down, all button interactions fail silently with no fallback.</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">3</div>
+          <div class="stat-copy">Distinct action handlers: <code>recap_approve/skip</code>, <code>thumbs_up/down</code>, <code>vote_next_topic_N</code>.</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">pop</div>
+          <div class="stat-copy"><code>pop_recap</code> deletes atomically — double-click Approve posts nothing on the second click and logs a warning.</div>
+        </div>
+      </div>
+    </aside>
+  </header>
+
+  <!-- ── Nav ─────────────────────────────────────── -->
+  <nav class="control-strip animate" id="control-strip" style="--i:1">
+    <a href="#s1"><span>01</span> Overview</a>
+    <a href="#s2"><span>02</span> Review Mode</a>
+    <a href="#s3"><span>03</span> Feedback</a>
+    <a href="#s4"><span>04</span> Topic Poll</a>
+    <a href="#s5"><span>05</span> Dry-run</a>
+    <a href="#s6"><span>06</span> State Files</a>
+  </nav>
+
+  <!-- ── 01 Overview ─────────────────────────────── -->
+  <section id="s1" class="panel animate" style="--i:2">
+    <div class="panel-head">
+      <div class="panel-index">01</div>
+      <h2>Overview</h2>
+    </div>
+    <p class="description">
+      <strong>How it works:</strong> The Slack coach interactive layer listens for button clicks from Slack users over a
+      persistent Socket Mode WebSocket connection (via the <code>coach-socket</code> container).
+      When a user clicks any button in a coach-posted message, Slack dispatches an action event to the running
+      <code>SocketModeHandler</code>, which routes it to the appropriate handler by <code>action_id</code>.
+    </p>
+    <p class="description">
+      There are three independent interaction flows. <strong>Review mode</strong> lets a designated reviewer approve or skip
+      a held recap before it goes public — the recap is stored in <code>held_recaps.json</code> until actioned.
+      <strong>Feedback voting</strong> (thumbs up/down) records per-user sentiment on a posted message and updates the
+      button label in-place. <strong>Topic poll voting</strong> lets users vote for the next coaching topic and
+      sees live vote counts and avatars refresh on the message.
+    </p>
+    <p class="description">
+      All state is written to JSON files under <code>STATE_DIR</code> — not a database. A volume mount
+      shared between <code>coach-server</code> and <code>coach-socket</code> is required for review mode to work
+      (the server writes held recaps; the socket server reads and pops them).
+    </p>
+
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  slackUser["Slack User clicks button"] --> socketMode["Socket Mode\nWebSocket dispatch"]
+  socketMode --> router{"action_id?"}
+
+  router -->|"recap_approve\nrecap_skip"| reviewFlow["Review Mode\nApprove / Skip"]
+  router -->|"thumbs_up\nthumbs_down"| feedbackFlow["Feedback\nVoting"]
+  router -->|"vote_next_topic_N"| pollFlow["Topic Poll\nVoting"]
+
+  reviewFlow --> reviewState["held_recaps.json\npop entry"]
+  feedbackFlow --> feedbackState["feedback_{job}_{ch}.json\nupsert vote"]
+  pollFlow --> pollState["votes_{job}_{ch}.json\nupsert vote"]
+
+  reviewState -->|"approved"| postRecap["post_recap → channel"]
+  reviewState -->|"skipped"| discard["discard"]
+  feedbackState --> updateButtons["update button text\nvia chat.update"]
+  pollState --> updatePoll["refresh vote counts\n+ avatars on message"]
+
+  classDef trigger fill:#1340ff33,stroke:#1340ff,stroke-width:2px
+  classDef decision fill:#7040ff44,stroke:#9060ff,stroke-width:2px
+  classDef flow fill:#0fa88933,stroke:#0fa889,stroke-width:2px
+  classDef state fill:#d4780033,stroke:#d47800,stroke-width:2px
+  classDef output fill:#0f6d8c44,stroke:#38bdf8,stroke-width:2px
+
+  class slackUser,socketMode trigger
+  class router decision
+  class reviewFlow,feedbackFlow,pollFlow flow
+  class reviewState,feedbackState,pollState state
+  class postRecap,discard,updateButtons,updatePoll output
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="swatch" style="background:#1340ff"></div> trigger / transport</div>
+      <div class="legend-item"><div class="swatch" style="background:#9060ff"></div> action routing</div>
+      <div class="legend-item"><div class="swatch" style="background:#0fa889"></div> handler</div>
+      <div class="legend-item"><div class="swatch" style="background:#d47800"></div> state write</div>
+      <div class="legend-item"><div class="swatch" style="background:#38bdf8"></div> output / side effect</div>
+    </div>
+  </section>
+
+  <!-- ── 02 Review Mode ──────────────────────────── -->
+  <section id="s2" class="panel animate" style="--i:3">
+    <div class="panel-head">
+      <div class="panel-index pi--blue">02</div>
+      <h2>Review Mode</h2>
+    </div>
+    <p class="description">
+      When <code>REVIEW_MODE=true</code>, the Fireflies webhook path does not post directly to the target channel.
+      Instead, <code>server.py</code> calls <code>hold_recap()</code> which writes the Block Kit blocks and target
+      <code>channel_id</code> to <code>held_recaps.json</code> under a fresh UUID key.
+      It then calls <code>send_review_dm()</code> which posts the full recap preview to the reviewer's DM,
+      appending <strong>Approve</strong> and <strong>Skip</strong> buttons whose <code>value</code> is the UUID.
+    </p>
+    <p class="description">
+      When the reviewer clicks a button, the Socket Mode handler receives the action.
+      <code>pop_recap(recap_id)</code> removes the entry from <code>held_recaps.json</code> atomically —
+      a second click on the same button finds nothing and logs a warning.
+      On approve, <code>post_recap()</code> sends the blocks to the original target channel.
+      In both cases, <code>_update_dm_status()</code> replaces the DM message with a one-line status.
+    </p>
+
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  webhook["POST /webhooks/fireflies\nREVIEW_MODE=true"] --> holdRecap["hold_recap\nwrite to held_recaps.json"]
+  holdRecap --> genId["UUID recap_id generated"]
+  genId --> sendDM["send_review_dm\nPOST to reviewer DM\nwith Approve / Skip buttons"]
+  sendDM --> waitReview["Recap held — waiting\nfor reviewer action"]
+
+  waitReview -->|"Approve clicked"| popApprove["pop_recap\nremove from held_recaps.json"]
+  waitReview -->|"Skip clicked"| popSkip["pop_recap\nremove from held_recaps.json"]
+  waitReview -->|"recap_id not found"| warn["log warning\nno-op"]
+
+  popApprove --> postChannel["post_recap\nPOST to target channel"]
+  popSkip --> discardRecap["recap discarded"]
+
+  postChannel --> updateDMApproved["_update_dm_status\nApproved — posted to channel."]
+  discardRecap --> updateDMSkipped["_update_dm_status\nSkipped — recap discarded."]
+
+  classDef entry fill:#1340ff33,stroke:#1340ff,stroke-width:2px
+  classDef state fill:#d4780033,stroke:#d47800,stroke-width:2px
+  classDef hold fill:#0f6d8c44,stroke:#38bdf8,stroke-width:2px
+  classDef approve fill:#0fa88933,stroke:#0fa889,stroke-width:2px
+  classDef skip fill:#ff5c2b33,stroke:#ff5c2b,stroke-width:2px
+  classDef warn fill:#7040ff33,stroke:#9060ff,stroke-width:1px
+
+  class webhook entry
+  class holdRecap,genId,sendDM,waitReview hold
+  class popApprove,postChannel,updateDMApproved approve
+  class popSkip,discardRecap,updateDMSkipped skip
+  class warn warn
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="swatch" style="background:#1340ff"></div> webhook trigger</div>
+      <div class="legend-item"><div class="swatch" style="background:#38bdf8"></div> hold / notify</div>
+      <div class="legend-item"><div class="swatch" style="background:#0fa889"></div> approve path</div>
+      <div class="legend-item"><div class="swatch" style="background:#ff5c2b"></div> skip / discard</div>
+    </div>
+
+    <div class="callout callout--alert">
+      <strong>Shared volume required:</strong> <code>coach-server</code> writes to <code>held_recaps.json</code>;
+      <code>coach-socket</code> reads and pops from it. Both containers must mount the same <code>STATE_DIR</code>.
+      If the socket container restarts between hold and approve, the file persists — but if the server container
+      has a different mount path, the pop will silently find nothing.
+    </div>
+  </section>
+
+  <!-- ── 03 Feedback Voting ──────────────────────── -->
+  <section id="s3" class="panel animate" style="--i:4">
+    <div class="panel-head">
+      <div class="panel-index pi--signal">03</div>
+      <h2>Feedback Voting</h2>
+    </div>
+    <p class="description">
+      Thumbs up and thumbs down handlers follow the same two-phase pattern.
+      The vote is <strong>recorded immediately</strong> on the first call to <code>record_vote()</code> — even before the user's
+      avatar is fetched. A second call with <code>user_image</code> populated updates the same entry if the
+      <code>users.info</code> API call succeeds. This means every vote counts even if the avatar fetch fails.
+    </p>
+    <p class="description">
+      Votes are written to <code>feedback_{job}_{channel}.json</code>. The key is the Slack message timestamp
+      (<code>message_ts</code>). If a user votes again, their existing vote entry is overwritten —
+      users can change their vote, but cannot vote twice.
+      After recording, the handler calls <code>chat.update</code> to mutate the button text in-place:
+      the chosen button shows a checkmark; the unchosen shows the opposite emoji.
+    </p>
+
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  btnClick["thumbs_up or thumbs_down\nbutton click"] --> ack["ack() — immediate\n3s Slack deadline"]
+  ack --> extractMeta["extract meta JSON\nfrom action value"]
+  extractMeta --> buildPayload["build vote payload\nuser_id, message_id, vote type"]
+  buildPayload --> recordVote1["record_vote\nwrite to feedback file\nno avatar yet"]
+  recordVote1 --> fetchAvatar["users.info\nfetch image_48"]
+  fetchAvatar -->|"success"| recordVote2["record_vote again\nupdate entry with avatar"]
+  fetchAvatar -->|"fails"| skip["skip avatar update\nvote already counted"]
+  recordVote2 --> updateUI
+  skip --> updateUI
+  updateUI["chat.update\nmutate button text in message"]
+
+  classDef action fill:#1340ff33,stroke:#1340ff,stroke-width:2px
+  classDef io fill:#0f6d8c44,stroke:#38bdf8,stroke-width:2px
+  classDef state fill:#d4780033,stroke:#d47800,stroke-width:2px
+  classDef optional fill:#7040ff33,stroke:#9060ff,stroke-width:1px,stroke-dasharray:4
+
+  class btnClick,ack action
+  class extractMeta,buildPayload,updateUI io
+  class recordVote1,recordVote2 state
+  class fetchAvatar,skip optional
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="swatch" style="background:#1340ff"></div> action trigger</div>
+      <div class="legend-item"><div class="swatch" style="background:#38bdf8"></div> processing</div>
+      <div class="legend-item"><div class="swatch" style="background:#d47800"></div> state write</div>
+      <div class="legend-item"><div class="swatch" style="background:#9060ff"></div> optional / may fail</div>
+    </div>
+
+    <div class="callout">
+      <strong>Vote overwrite semantics:</strong> each user has exactly one vote per message.
+      Clicking thumbs down after thumbs up replaces the earlier vote.
+      The <code>record_vote</code> loop finds an existing entry by <code>user_id</code> and overwrites it —
+      there is no append-only audit log.
+    </div>
+  </section>
+
+  <!-- ── 04 Topic Poll Voting ────────────────────── -->
+  <section id="s4" class="panel animate" style="--i:5">
+    <div class="panel-head">
+      <div class="panel-index pi--plum">04</div>
+      <h2>Topic Poll Voting</h2>
+    </div>
+    <p class="description">
+      The next-topic poll renders one button per candidate in the Slack message using action IDs of the form
+      <code>vote_next_topic_N</code>. The handler uses a regex pattern <code>vote_next_topic_\d+</code>
+      to match any index. After recording the vote to <code>votes_{job}_{channel}.json</code>,
+      the handler re-inspects the full <code>blocks</code> array from the incoming event body to discover
+      all candidates and their associated context blocks.
+    </p>
+    <p class="description">
+      It then calls <code>get_poll_details()</code> which reads the votes file and returns per-candidate
+      vote counts and the three most recent voter avatars. Each candidate's context block is rebuilt and
+      a single <code>chat.update</code> replaces the entire message with refreshed counts.
+      This makes every vote a live read-update cycle against the state file.
+    </p>
+
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  pollClick["vote_next_topic_N\nbutton click"] --> ack["ack()"]
+  ack --> meta["extract candidate\nfrom action meta JSON"]
+  meta --> recordPoll["record_vote\nwrite to votes file\ncandidate field set"]
+  recordPoll --> fetchImg["users.info\nfetch avatar"]
+  fetchImg -->|"ok"| updateImg["record_vote again\nwith avatar"]
+  fetchImg -->|"fail"| skipImg["skip avatar\nvote counted"]
+
+  updateImg --> scanBlocks
+  skipImg --> scanBlocks
+  scanBlocks["scan message blocks\nfind all candidates\n+ context block indices"]
+  scanBlocks --> getPoll["get_poll_details\nread votes file\nreturn per-candidate counts + avatars"]
+  getPoll --> rebuildCtx["rebuild context blocks\nfor each candidate"]
+  rebuildCtx --> chatUpdate["chat.update\nreplace full message"]
+
+  classDef action fill:#7040ff33,stroke:#9060ff,stroke-width:2px
+  classDef state fill:#d4780033,stroke:#d47800,stroke-width:2px
+  classDef read fill:#0f6d8c44,stroke:#38bdf8,stroke-width:2px
+  classDef optional fill:#0f6d8c22,stroke:#38bdf888,stroke-width:1px,stroke-dasharray:4
+
+  class pollClick,ack,meta action
+  class recordPoll,updateImg state
+  class getPoll,scanBlocks,rebuildCtx,chatUpdate read
+  class fetchImg,skipImg optional
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="swatch" style="background:#9060ff"></div> action trigger</div>
+      <div class="legend-item"><div class="swatch" style="background:#d47800"></div> state write</div>
+      <div class="legend-item"><div class="swatch" style="background:#38bdf8"></div> read + rebuild</div>
+    </div>
+
+    <div class="callout callout--plum">
+      <strong>Every vote is a file read:</strong> <code>get_poll_details</code> opens and parses the entire votes JSON file
+      on every button click. With many voters on a high-traffic message this is fine at current scale,
+      but becomes a contention point if multiple users click simultaneously — last writer wins on the JSON file write.
+    </div>
+  </section>
+
+  <!-- ── 05 Dry-run ──────────────────────────────── -->
+  <section id="s5" class="panel animate" style="--i:6">
+    <div class="panel-head">
+      <div class="panel-index pi--alert">05</div>
+      <h2>Dry-run behavior</h2>
+    </div>
+    <p class="description">
+      <strong>No dry-run mode is implemented</strong> for any of the three interaction flows.
+    </p>
+    <p class="description">
+      There is no <code>--dry-run</code> flag, environment variable, or code path that suppresses state writes
+      or Slack API calls during testing. Every button click in a real Slack workspace immediately writes to the
+      JSON state files and calls <code>chat.update</code> or <code>chat.postMessage</code>.
+    </p>
+    <div class="callout callout--alert">
+      <strong>Testing safely:</strong> use a dedicated test Slack workspace and a separate <code>STATE_DIR</code>
+      to avoid polluting production state. Review mode approval sends a real <code>chat.postMessage</code>
+      to the target channel — there is no way to rehearse it without it posting.
+    </div>
+  </section>
+
+  <!-- ── 06 State Files ──────────────────────────── -->
+  <section id="s6" class="panel animate" style="--i:7">
+    <div class="panel-head">
+      <div class="panel-index pi--teal">06</div>
+      <h2>State Storage</h2>
+    </div>
+    <p class="description">
+      All interaction state is persisted as JSON files in <code>STATE_DIR</code> (default <code>/state</code>).
+      Filenames encode scope: the <code>job</code> and <code>channel</code> fields from the action meta allow
+      separate files per coaching job and channel, so vote tallies from different jobs do not collide.
+    </p>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Written by</th>
+              <th>Read by</th>
+              <th>Contents</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>held_recaps.json</code></td>
+              <td><code>server.py</code> → <code>hold_recap()</code></td>
+              <td><code>socket_server.py</code> → <code>pop_recap()</code></td>
+              <td>
+                Map of UUID → <code>{blocks, channel_id, held_at}</code>. Entries are removed atomically on approve or skip.
+                <small>Shared between coach-server and coach-socket — requires common volume mount.</small>
+              </td>
+            </tr>
+            <tr>
+              <td><code>feedback_{job}_{channel}.json</code></td>
+              <td><code>socket_server.py</code> → <code>record_vote()</code></td>
+              <td><code>socket_server.py</code> → <code>get_vote_counts()</code></td>
+              <td>
+                Map of <code>message_ts</code> → <code>{votes: [{user_id, vote, user_image, timestamp}]}</code>. Thumbs up/down votes only.
+                <small>One entry per message; one vote per user (overwritten on re-vote).</small>
+              </td>
+            </tr>
+            <tr>
+              <td><code>votes_{job}_{channel}.json</code></td>
+              <td><code>socket_server.py</code> → <code>record_vote()</code></td>
+              <td><code>socket_server.py</code> → <code>get_poll_details()</code></td>
+              <td>
+                Map of <code>message_ts</code> → <code>{votes: [{user_id, candidate, vote, user_image, timestamp}]}</code>. Next-topic poll votes only.
+                <small>One entry per message; one vote per user (overwritten on re-vote); <code>candidate</code> field distinguishes choices.</small>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Single-instance assumption:</strong> JSON file writes are not atomic across processes.
+      Running multiple <code>coach-socket</code> replicas without an external lock would cause
+      lost updates on concurrent votes. The current architecture assumes one socket container instance.
+    </div>
+  </section>
+
+</div><!-- /page-shell -->
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    look: 'classic',
+    layout: 'elk',
+    themeVariables: {
+      primaryColor:        isDark ? '#1340ff33' : '#dbeafe',
+      primaryBorderColor:  isDark ? '#7fa2ff'   : '#1340ff',
+      primaryTextColor:    isDark ? '#f0f1f5'   : '#111111',
+      secondaryColor:      isDark ? '#7040ff33' : '#ede9fe',
+      secondaryBorderColor:isDark ? '#b89eff'   : '#7040ff',
+      secondaryTextColor:  isDark ? '#f0f1f5'   : '#111111',
+      tertiaryColor:       isDark ? '#0fa88933' : '#d1fae5',
+      tertiaryBorderColor: isDark ? '#30d4ae'   : '#0fa889',
+      tertiaryTextColor:   isDark ? '#f0f1f5'   : '#111111',
+      lineColor:           isDark ? '#9ba3b2'   : '#5c564f',
+      fontSize: '14px',
+      fontFamily: "'Sora', system-ui, sans-serif",
+      noteBkgColor:   isDark ? '#181d29' : '#e6e2da',
+      noteTextColor:  isDark ? '#f0f1f5' : '#111111',
+      noteBorderColor:isDark ? '#7fa2ff' : '#1340ff'
+    }
+  });
+</script>
+<script>
+  function updateZoomState(wrap) {
+    var t = wrap.querySelector('.mermaid');
+    wrap.classList.toggle('is-zoomed', parseFloat(t.dataset.zoom || '1') > 1);
+  }
+  function zoomDiagram(btn, factor) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var t = wrap.querySelector('.mermaid');
+    var next = Math.min(Math.max(parseFloat(t.dataset.zoom || '1') * factor, 0.3), 5);
+    t.dataset.zoom = next;
+    t.style.transform = 'scale(' + next + ')';
+    updateZoomState(wrap);
+  }
+  function resetZoom(btn) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var t = wrap.querySelector('.mermaid');
+    t.dataset.zoom = '1';
+    t.style.transform = 'scale(1)';
+    updateZoomState(wrap);
+  }
+
+  document.querySelectorAll('.mermaid-wrap').forEach(function(wrap) {
+    wrap.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      var t = wrap.querySelector('.mermaid');
+      var next = Math.min(Math.max(parseFloat(t.dataset.zoom || '1') * (e.deltaY < 0 ? 1.1 : 0.9), 0.3), 5);
+      t.dataset.zoom = next;
+      t.style.transform = 'scale(' + next + ')';
+      updateZoomState(wrap);
+    }, { passive: false });
+
+    var sx, sy, sl, st;
+    wrap.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.zoom-controls')) return;
+      if (parseFloat(wrap.querySelector('.mermaid').dataset.zoom || '1') <= 1) return;
+      wrap.classList.add('is-panning');
+      sx = e.clientX; sy = e.clientY; sl = wrap.scrollLeft; st = wrap.scrollTop;
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!wrap.classList.contains('is-panning')) return;
+      wrap.scrollLeft = sl - (e.clientX - sx);
+      wrap.scrollTop  = st - (e.clientY - sy);
+    });
+    window.addEventListener('mouseup', function() { wrap.classList.remove('is-panning'); });
+  });
+
+  (function() {
+    var strip = document.getElementById('control-strip');
+    var links = strip.querySelectorAll('a');
+    var sections = [];
+    links.forEach(function(link) {
+      var el = document.getElementById(link.getAttribute('href').slice(1));
+      if (el) sections.push({ link: link, el: el });
+    });
+    var obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        links.forEach(function(l) { l.classList.remove('active'); });
+        var m = sections.find(function(s) { return s.el === entry.target; });
+        if (m) {
+          m.link.classList.add('active');
+          m.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      });
+    }, { rootMargin: '-18% 0px -68% 0px' });
+    sections.forEach(function(s) { obs.observe(s.el); });
+    links.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var el = document.getElementById(link.getAttribute('href').slice(1));
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', link.getAttribute('href')); }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

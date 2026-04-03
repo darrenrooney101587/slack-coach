@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fireflies → Slack Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-display: 'Open Sans', system-ui, sans-serif;
+    --font-body: 'Open Sans', system-ui, sans-serif;
+    --font-mono: 'Open Sans', system-ui, sans-serif;
+    --bg: #f2f0eb;
+    --surface: rgba(255,255,255,0.9);
+    --surface-2: #e7e3da;
+    --surface-3: #dad4c7;
+    --text: #121212;
+    --text-dim: #5f5a53;
+    --border: rgba(18,18,18,0.12);
+    --border-strong: rgba(18,18,18,0.22);
+    --accent: #1340ff;
+    --accent-soft: rgba(19,64,255,0.12);
+    --signal: #d3ff36;
+    --signal-soft: rgba(211,255,54,0.18);
+    --alert: #ff6038;
+    --alert-soft: rgba(255,96,56,0.14);
+    --plum: #7b57ff;
+    --plum-soft: rgba(123,87,255,0.12);
+    --code: #b42318;
+    --code-soft: rgba(180,35,24,0.12);
+    --code-border: rgba(180,35,24,0.24);
+    --strip-bg: rgba(255,255,255,0.84);
+    --strip-chip-bg: rgba(18,18,18,0.03);
+    --shadow: 10px 10px 0 rgba(18,18,18,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1116;
+      --surface: rgba(22,24,31,0.92);
+      --surface-2: #191d28;
+      --surface-3: #222736;
+      --text: #f3f4f7;
+      --text-dim: #a2a8b5;
+      --border: rgba(243,244,247,0.08);
+      --border-strong: rgba(243,244,247,0.16);
+      --accent: #86a0ff;
+      --accent-soft: rgba(134,160,255,0.16);
+      --signal: #d5ff63;
+      --signal-soft: rgba(213,255,99,0.16);
+      --alert: #ff8a66;
+      --alert-soft: rgba(255,138,102,0.16);
+      --plum: #bca7ff;
+      --plum-soft: rgba(188,167,255,0.16);
+      --code: #ff7b72;
+      --code-soft: rgba(255,123,114,0.14);
+      --code-border: rgba(255,123,114,0.24);
+      --strip-bg: rgba(15,17,22,0.92);
+      --strip-chip-bg: rgba(243,244,247,0.04);
+      --shadow: 10px 10px 0 rgba(0,0,0,0.24);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); padding: 28px; min-height: 100vh; }
+  a { color: var(--accent); text-decoration: none; box-shadow: inset 0 -0.34em 0 transparent; transition: box-shadow 0.15s ease, color 0.15s ease; }
+  a:hover { box-shadow: inset 0 -0.34em 0 var(--signal-soft); }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .animate { animation: rise 0.35s ease-out both; animation-delay: calc(var(--i,0) * 0.04s); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; } }
+  .page-shell { max-width: 1200px; margin: 0 auto; }
+  .hero { display: grid; grid-template-columns: minmax(0,1.4fr) 320px; gap: 16px; margin-bottom: 1.5rem; }
+  .hero-main, .hero-side { border: 1px solid var(--border-strong); background: var(--surface); box-shadow: var(--shadow); }
+  .hero-main { padding: 24px; }
+  .hero-side { padding: 18px; }
+  .stamp { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border-strong); background: var(--signal-soft); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; }
+  h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.1rem,6vw,2.8rem); line-height: 0.96; letter-spacing: -0.035em; max-width: 12ch; margin-bottom: 12px; }
+  .subtitle { max-width: 780px; font-size: 15px; line-height: 1.75; color: var(--text-dim); margin-bottom: 18px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tag { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--border); background: var(--strip-chip-bg); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .hero-side .mini-title { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
+  .stat-list { display: grid; gap: 10px; }
+  .stat { display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 12px; border: 1px solid var(--border); background: var(--surface-2); }
+  .stat-value { font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1; }
+  .stat-copy { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+  .stat-copy code { font-family: var(--font-body); font-size: 11px; font-weight: 700; padding: 1px 5px; border: 1px solid var(--code-border); background: var(--code-soft); color: var(--code); }
+  .control-strip { position: sticky; top: 14px; z-index: 60; display: flex; gap: 8px; overflow-x: auto; padding: 10px; margin: 0 0 18px; background: var(--strip-bg); border: 1px solid var(--border-strong); box-shadow: var(--shadow); }
+  .control-strip::-webkit-scrollbar { display: none; }
+  .control-strip a { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); background: var(--strip-chip-bg); color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease; }
+  .control-strip a span { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; background: var(--surface-2); color: var(--text); }
+  .control-strip a:hover { transform: translateY(-1px); color: var(--text); }
+  .control-strip a.active { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+  .panel { margin-bottom: 1.5rem; border: 1px solid var(--border-strong); background: var(--surface); box-shadow: var(--shadow); padding: 24px; }
+  .panel-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .panel-index { --panel-accent: var(--text); display: inline-flex; align-items: center; justify-content: center; min-width: 58px; height: 34px; padding: 0 14px; border: 1px solid var(--border-strong); border-left: 4px solid var(--panel-accent); background: linear-gradient(180deg,rgba(255,255,255,0.08),transparent), var(--surface-2); color: var(--text); font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  .panel-index--blue { --panel-accent: var(--accent); }
+  .panel-index--signal { --panel-accent: #4b7f1f; }
+  .panel-index--alert { --panel-accent: var(--alert); }
+  .panel-index--plum { --panel-accent: var(--plum); }
+  h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem,3vw,1.7rem); line-height: 1.05; letter-spacing: -0.03em; }
+  .description { max-width: 860px; font-size: 15px; line-height: 1.8; color: var(--text-dim); margin-bottom: 18px; }
+  .description strong, .callout strong { color: var(--text); }
+  .description code, .callout code { font-family: var(--font-body); font-size: 12px; font-weight: 700; padding: 2px 7px; border: 1px solid var(--code-border); background: var(--code-soft); color: var(--code); }
+  .callout { margin-top: 12px; padding: 14px 16px; border-left: 8px solid var(--signal); background: var(--surface-2); color: var(--text-dim); font-size: 14px; line-height: 1.75; }
+  .callout--alert { border-left-color: var(--alert); }
+  .mermaid-wrap { position: relative; background: linear-gradient(180deg,rgba(255,255,255,0.08),transparent), var(--surface-2); border: 1px solid var(--border-strong); padding: 28px 22px; overflow: auto; margin-bottom: 16px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .mermaid-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  .mermaid-wrap::-webkit-scrollbar-thumb { background: var(--border); }
+  .mermaid-wrap .mermaid { display: flex; justify-content: center; transition: transform 0.2s ease; transform-origin: top center; min-width: max-content; }
+  .zoom-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 10; }
+  .zoom-controls button { width: 34px; height: 34px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-dim); font-size: 14px; cursor: pointer; transition: transform 0.15s ease, background 0.15s ease; }
+  .zoom-controls button:hover { transform: translateY(-1px); background: var(--signal-soft); color: var(--text); }
+  .mermaid-wrap.is-zoomed { cursor: grab; }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .mermaid .nodeLabel, .mermaid .label text, .mermaid .cluster-label text, .mermaid .messageText { font-family: var(--font-body) !important; font-size: 15px !important; fill: var(--text) !important; color: var(--text) !important; }
+  .mermaid .nodeLabel p, .mermaid .nodeLabel span, .mermaid .label p, .mermaid .label span, .mermaid .label div { color: var(--text) !important; }
+  .mermaid .edgeLabel, .mermaid .edgeLabel text { font-family: var(--font-body) !important; font-size: 13px !important; fill: var(--text-dim) !important; color: var(--text-dim) !important; }
+  .mermaid .edgeLabel p, .mermaid .edgeLabel span, .mermaid .edgeLabel div { color: var(--text-dim) !important; }
+  .mermaid .edgeLabel rect { fill: var(--surface-2) !important; opacity: 1 !important; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 2px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.75px !important; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; }
+  .legend-item { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid var(--border); background: var(--strip-chip-bg); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .legend-swatch { width: 10px; height: 10px; }
+  .table-wrap { border: 1px solid var(--border-strong); background: var(--surface); overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.6; }
+  .data-table thead { position: sticky; top: 0; z-index: 1; }
+  .data-table th { background: var(--surface-2); font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border-strong); white-space: nowrap; }
+  .data-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr:nth-child(even) { background: rgba(18,18,18,0.025); }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table small { display: block; color: var(--text-dim); margin-top: 4px; }
+  .data-table code { font-family: var(--font-body); font-size: 11px; font-weight: 700; padding: 1px 5px; border: 1px solid var(--code-border); background: var(--code-soft); color: var(--code); }
+  @media (max-width: 900px) { body { padding: 16px; } .hero { grid-template-columns: 1fr; } .hero-main, .hero-side, .panel { padding: 18px; } }
+</style>
+</head>
+<body>
+<div class="page-shell">
+
+  <header class="hero animate" style="--i:0">
+    <div class="hero-main">
+      <div class="stamp">Event-driven pipeline</div>
+      <h1>Fireflies → Slack</h1>
+      <p class="subtitle">
+        When a meeting ends, Fireflies posts a webhook. The Flask server fetches the full transcript via GraphQL, formats it as Slack Block Kit blocks, resolves the routing target from <code>routing.yml</code>, and posts the recap as a DM or channel message.
+      </p>
+      <div class="tag-row">
+        <span class="tag">event-driven</span>
+        <span class="tag">flask webhook receiver</span>
+        <span class="tag">fireflies graphql</span>
+        <span class="tag">routing.yml config</span>
+        <span class="tag">slack block kit</span>
+        <span class="tag">multi-recipient</span>
+      </div>
+    </div>
+    <aside class="hero-side">
+      <div class="mini-title">Quick read</div>
+      <div class="stat-list">
+        <div class="stat">
+          <div class="stat-value">1</div>
+          <div class="stat-copy">Single HTTP request per meeting. No queue, no retry loop — if the webhook fails, Fireflies will not redeliver.</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">n</div>
+          <div class="stat-copy">A single meeting recap can post to multiple targets. <code>channels</code> list in routing rule fans out to all of them serially.</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">cold</div>
+          <div class="stat-copy"><code>routing.yml</code> is cached after first load. Routing changes require a server restart to take effect.</div>
+        </div>
+      </div>
+    </aside>
+  </header>
+
+  <nav class="control-strip animate" id="control-strip" style="--i:1">
+    <a href="#s1"><span>01</span> Overview</a>
+    <a href="#s2"><span>02</span> Ingress</a>
+    <a href="#s3"><span>03</span> Processing</a>
+    <a href="#s4"><span>04</span> Routing</a>
+    <a href="#s5"><span>05</span> Delivery</a>
+    <a href="#s6"><span>06</span> Dry-run</a>
+    <a href="#s7"><span>07</span> Reference</a>
+  </nav>
+
+  <section id="s1" class="panel animate" style="--i:2">
+    <div class="panel-head">
+      <div class="panel-index">01</div>
+      <h2>Overview</h2>
+    </div>
+    <p class="description">
+      <strong>How it works:</strong> A meeting ends in Zoom or Google Meet. Fireflies records and transcribes it, then fires a <code>meeting.summarized</code> webhook to the configured endpoint. The Flask server at <code>/webhooks/fireflies</code> receives the event, extracts the <code>meeting_id</code>, and calls the Fireflies GraphQL API to fetch the full transcript including the AI-generated summary and action items.
+    </p>
+    <p class="description">
+      The transcript is formatted into Slack Block Kit blocks — a header with the meeting title, a summary section, and per-person action items grouped by name. The server then consults <code>routing.yml</code> to determine the target channel or DM recipients based on the meeting title or organizer email. If no rule matches, the recap posts to the configured <code>default_channel</code>. When multiple targets are resolved, the recap posts to each serially.
+    </p>
+    <div class="callout">
+      <strong>No delivery guarantee.</strong> Fireflies does not retry failed webhooks. If the server is down or returns a non-200 response when the webhook fires, that recap is lost. The <code>FIREFLIES_WEBHOOK_SECRET</code> env var is optional — without it, the signature check is skipped and any caller can trigger a fetch.
+    </div>
+  </section>
+
+  <section id="s2" class="panel animate" style="--i:3">
+    <div class="panel-head">
+      <div class="panel-index panel-index--blue">02</div>
+      <h2>Ingress</h2>
+    </div>
+    <p class="description">
+      <strong>Trigger:</strong> Fireflies HTTP POST to <code>/webhooks/fireflies</code>. Payload contains <code>meeting_id</code>, <code>event</code>, and <code>timestamp</code>. All events are processed — there is no event type filter.
+    </p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  A["Fireflies\nPOST /webhooks/fireflies"] --> B{"Signature\ncheck enabled?"}
+  B -->|"FIREFLIES_WEBHOOK_SECRET set"| C["Verify HMAC signature"]
+  B -->|"no secret configured"| E["Parse JSON body"]
+  C -->|"valid"| E
+  C -->|"invalid"| F["403 Forbidden"]
+  E -->|"parse error"| G["400 Bad Request"]
+  E -->|"missing meeting_id"| H["400 Bad Request"]
+  E -->|"ok"| I["Log event_type + meeting_id"]
+  I --> J["Fetch transcript from Fireflies GraphQL"]
+
+  classDef entry fill:#0f6d8c66,stroke:#38bdf8,stroke-width:2px
+  classDef decision fill:#8b5cf666,stroke:#a78bfa,stroke-width:2px
+  classDef reject fill:#c0392b44,stroke:#e74c3c,stroke-width:2px
+  classDef ok fill:#0e8a6966,stroke:#34d399,stroke-width:2px
+
+  class A entry
+  class B,C decision
+  class F,G,H reject
+  class E,I,J ok
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div> entry point</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#a78bfa"></div> decision / guard</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div> rejected — non-200 returned</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#34d399"></div> processing continues</div>
+    </div>
+  </section>
+
+  <section id="s3" class="panel animate" style="--i:4">
+    <div class="panel-head">
+      <div class="panel-index panel-index--signal">03</div>
+      <h2>Transcript fetch and formatting</h2>
+    </div>
+    <p class="description">
+      The server calls the Fireflies GraphQL API with the <code>meeting_id</code>. The response includes the meeting title, summary overview, bullet points, and action items. If the transcript has no usable summary fields, the server returns 422 and stops. Otherwise <code>format_recap()</code> builds the Block Kit payload: a header block, divider, summary section, per-person action items, and a trailing divider.
+    </p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  A["fetch_transcript(meeting_id)"] -->|"HTTP 200 from Fireflies"| B{"Summary\nfields present?"}
+  A -->|"API error or timeout"| C["500 transcript_fetch_failed"]
+  B -->|"overview or action_items empty"| D["422 missing_required_fields"]
+  B -->|"has summary"| E["format_recap(transcript)"]
+  E --> F["Header block: meeting title"]
+  F --> G["Summary section: overview text"]
+  G --> H{"Action items have\nper-person headers?"}
+  H -->|"**Name** headers detected"| I["One block per person\nwith bullet items"]
+  H -->|"flat list"| J["Single block, 2900 char limit"]
+  I --> K["Block Kit blocks ready"]
+  J --> K
+
+  classDef fetch fill:#0f6d8c66,stroke:#38bdf8,stroke-width:2px
+  classDef decision fill:#8b5cf666,stroke:#a78bfa,stroke-width:2px
+  classDef reject fill:#c0392b44,stroke:#e74c3c,stroke-width:2px
+  classDef format fill:#0e8a6966,stroke:#34d399,stroke-width:2px
+  classDef output fill:#b5761455,stroke:#fb923c,stroke-width:2px
+
+  class A fetch
+  class B,H decision
+  class C,D reject
+  class E,F,G,I,J format
+  class K output
+      </pre>
+    </div>
+    <div class="callout">
+      <strong>Markdown conversion.</strong> Fireflies uses <code>**bold**</code> markdown in action items. <code>format_recap()</code> converts these to Slack's <code>*bold*</code> syntax before building blocks. Per-person grouping is detected by looking for <code>**Name**</code> headers in the action items text.
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div> external API call</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#a78bfa"></div> decision point</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div> early exit</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#34d399"></div> formatting steps</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#fb923c"></div> output produced</div>
+    </div>
+  </section>
+
+  <section id="s4" class="panel animate" style="--i:5">
+    <div class="panel-head">
+      <div class="panel-index panel-index--plum">04</div>
+      <h2>Routing</h2>
+    </div>
+    <p class="description">
+      <code>resolve_channel(transcript, config)</code> walks the rules list in order and returns the first match as a list of target IDs. Rules match on <code>title</code> or <code>organizer_email</code> using Python <code>re.search()</code> (case-insensitive). A rule can specify a single <code>channel</code> or a <code>channels</code> list for multi-recipient delivery. If no rule matches, the <code>default_channel</code> is returned as a one-item list.
+    </p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  A["Load routing config\n(cached after first load)"] --> B["Walk rules list in order"]
+  B --> C{"Rule matches\ntitle or email?"}
+  C -->|"match — single channel"| D["Return [channel]"]
+  C -->|"match — channels list"| E["Return [ch1, ch2, ...]"]
+  C -->|"no rules match"| F{"default_channel\nconfigured?"}
+  F -->|"yes"| G["Return [default_channel]"]
+  F -->|"no"| H["Return [] — 500 no_routing_target"]
+  D --> I["Targets resolved"]
+  E --> I
+  G --> I
+
+  classDef config fill:#0f6d8c66,stroke:#38bdf8,stroke-width:2px
+  classDef decision fill:#8b5cf666,stroke:#a78bfa,stroke-width:2px
+  classDef match fill:#0e8a6966,stroke:#34d399,stroke-width:2px
+  classDef reject fill:#c0392b44,stroke:#e74c3c,stroke-width:2px
+  classDef output fill:#b5761455,stroke:#fb923c,stroke-width:2px
+
+  class A config
+  class C,F decision
+  class B,D,E,G match
+  class H reject
+  class I output
+      </pre>
+    </div>
+    <div class="callout callout--alert">
+      <strong>Regex gotcha.</strong> Patterns are fed directly to <code>re.search()</code>. Square brackets are regex character classes — <code>[Daily Standup]</code> matches a single character from that set, not the literal string. Escape them: <code>\\[Daily Standup\\]</code> in YAML (which produces <code>\[Daily Standup\]</code> in the regex). User IDs (<code>U...</code>) work as channel targets — Slack resolves them to a DM between the bot and that user.
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div> config load</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#a78bfa"></div> decision point</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#34d399"></div> match path</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div> no target — aborted</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#fb923c"></div> targets list produced</div>
+    </div>
+  </section>
+
+  <section id="s5" class="panel animate" style="--i:6">
+    <div class="panel-head">
+      <div class="panel-index panel-index--alert">05</div>
+      <h2>Delivery</h2>
+    </div>
+    <p class="description">
+      The server iterates the resolved targets list and calls <code>post_recap(blocks, channel_id, token)</code> for each. If <code>REVIEW_MODE=true</code>, the recap is held in the state directory and a review DM is sent to <code>REVIEWER_USER_ID</code> instead. The reviewer approves or skips via Slack buttons handled by the socket server.
+    </p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
+        <button onclick="zoomDiagram(this,0.8)" title="Zoom out">-</button>
+        <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
+      </div>
+      <pre class="mermaid">
+flowchart TD
+  A["Targets list resolved"] --> B{"REVIEW_MODE\nenabled?"}
+  B -->|"yes"| C["hold_recap: write blocks + channel\nto state dir as JSON"]
+  C --> D["send_review_dm to REVIEWER_USER_ID"]
+  D --> E["200 held: true"]
+  B -->|"no"| F["For each target in list"]
+  F --> G["POST chat.postMessage\nchannel = target ID"]
+  G -->|"Slack ok: true"| H{"More targets?"}
+  H -->|"yes"| F
+  H -->|"done"| I["200 ok: true"]
+  G -->|"not_in_channel error"| J["403 bot_not_in_channel"]
+  G -->|"other Slack error"| K["500 slack_post_failed"]
+
+  classDef input fill:#0f6d8c66,stroke:#38bdf8,stroke-width:2px
+  classDef decision fill:#8b5cf666,stroke:#a78bfa,stroke-width:2px
+  classDef review fill:#b5761455,stroke:#fb923c,stroke-width:2px
+  classDef deliver fill:#0e8a6966,stroke:#34d399,stroke-width:2px
+  classDef success fill:#12805d77,stroke:#34d399,stroke-width:2px
+  classDef reject fill:#c0392b44,stroke:#e74c3c,stroke-width:2px
+
+  class A input
+  class B,H decision
+  class C,D,E review
+  class F,G deliver
+  class I success
+  class J,K reject
+      </pre>
+    </div>
+    <div class="callout">
+      <strong>Serial fan-out.</strong> When a rule specifies multiple targets, <code>post_recap</code> is called sequentially. If one target fails with a hard error, the loop stops and remaining targets are skipped. There is no partial-success tracking.
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div> input</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#a78bfa"></div> decision</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#fb923c"></div> review mode path</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#34d399"></div> direct delivery</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div> error exit</div>
+    </div>
+  </section>
+
+  <section id="s6" class="panel animate" style="--i:7">
+    <div class="panel-head">
+      <div class="panel-index panel-index--alert">06</div>
+      <h2>Dry-run behavior</h2>
+    </div>
+    <p class="description">
+      <strong>No dry-run mode is implemented.</strong> Every valid webhook triggers a live Fireflies GraphQL API call and a live Slack <code>chat.postMessage</code> call. There is no flag or environment variable to suppress delivery while exercising the pipeline.
+    </p>
+    <p class="description">
+      For local testing without waiting for a real Fireflies event, use <code>webhook_test.sh</code> with a real <code>meeting_id</code> from your Fireflies account and the server running locally. This will perform a real transcript fetch and post a real Slack message.
+    </p>
+    <div class="callout callout--alert">
+      <strong>Test against a real meeting.</strong> <code>webhook_test.sh</code> hits a live endpoint and posts live Slack messages. Route test traffic to a dedicated test channel (<code>#test-dm</code>) via <code>routing.yml</code> to avoid noise in production channels during development.
+    </div>
+  </section>
+
+  <section id="s7" class="panel animate" style="--i:8">
+    <div class="panel-head">
+      <div class="panel-index">07</div>
+      <h2>Reference</h2>
+    </div>
+    <p class="description">Components and external dependencies touched by the pipeline.</p>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Role</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>app/server.py</code></td>
+              <td>Webhook receiver</td>
+              <td>Flask app. Handles ingress, orchestrates fetch → format → route → post.<small>Runs in <code>coach-server</code> container, port 8080.</small></td>
+            </tr>
+            <tr>
+              <td><code>app/fireflies.py</code></td>
+              <td>Fireflies API client</td>
+              <td>GraphQL POST to <code>api.fireflies.ai/graphql</code>. Fetches title, summary, action items.<small>Requires <code>FIREFLIES_API_KEY</code>.</small></td>
+            </tr>
+            <tr>
+              <td><code>app/formatter.py</code></td>
+              <td>Block Kit formatter</td>
+              <td>Converts transcript dict to Slack blocks. Parses <code>**Name**</code> headers for per-person action items. Converts <code>**bold**</code> to <code>*bold*</code>.</td>
+            </tr>
+            <tr>
+              <td><code>app/router.py</code></td>
+              <td>Routing resolver</td>
+              <td>Walks <code>routing.yml</code> rules, returns list of target IDs. Supports <code>channel</code> (single) and <code>channels</code> (list) per rule.<small>Config is cached after first load — restart required for changes.</small></td>
+            </tr>
+            <tr>
+              <td><code>routing.yml</code></td>
+              <td>Routing config</td>
+              <td>YAML file at project root. Baked into Docker image at build time. Rules match on <code>title</code> or <code>organizer_email</code> via regex.</td>
+            </tr>
+            <tr>
+              <td><code>app/slack.py</code></td>
+              <td>Slack poster</td>
+              <td><code>chat.postMessage</code> via HTTPS. Accepts channel IDs (<code>C...</code>) or user IDs (<code>U...</code> — Slack opens a DM).<small>Requires <code>SLACK_BOT_TOKEN</code>.</small></td>
+            </tr>
+            <tr>
+              <td><code>app/review.py</code></td>
+              <td>Hold state (optional)</td>
+              <td>Writes recap JSON to <code>STATE_DIR</code> when <code>REVIEW_MODE=true</code>. <code>pop_recap</code> reads and deletes it on approval or skip.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: true, theme: 'base', look: 'classic', layout: 'elk',
+    themeVariables: {
+      primaryColor: isDark ? '#0f6d8c66' : '#dbeef8',
+      primaryBorderColor: isDark ? '#38bdf8' : '#0284c7',
+      primaryTextColor: isDark ? '#f3f4f7' : '#121212',
+      secondaryColor: isDark ? '#7c3aed66' : '#ede9fe',
+      secondaryBorderColor: isDark ? '#a78bfa' : '#7c3aed',
+      secondaryTextColor: isDark ? '#f3f4f7' : '#121212',
+      tertiaryColor: isDark ? '#b5761455' : '#ffedd5',
+      tertiaryBorderColor: isDark ? '#fb923c' : '#ea580c',
+      tertiaryTextColor: isDark ? '#f3f4f7' : '#121212',
+      lineColor: isDark ? '#a2a8b5' : '#5f5a53',
+      fontSize: '16px', fontFamily: "'Open Sans', system-ui, sans-serif",
+      noteBkgColor: isDark ? '#191d28' : '#e7e3da',
+      noteTextColor: isDark ? '#f3f4f7' : '#121212',
+      noteBorderColor: isDark ? '#86a0ff' : '#1340ff'
+    }
+  });
+</script>
+<script>
+  function updateZoomState(wrap) {
+    var target = wrap.querySelector('.mermaid');
+    var zoom = parseFloat(target.dataset.zoom || '1');
+    wrap.classList.toggle('is-zoomed', zoom > 1);
+  }
+  function zoomDiagram(btn, factor) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var target = wrap.querySelector('.mermaid');
+    var current = parseFloat(target.dataset.zoom || '1');
+    var next = Math.min(Math.max(current * factor, 0.3), 5);
+    target.dataset.zoom = next;
+    target.style.transform = 'scale(' + next + ')';
+    updateZoomState(wrap);
+  }
+  function resetZoom(btn) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var target = wrap.querySelector('.mermaid');
+    target.dataset.zoom = '1';
+    target.style.transform = 'scale(1)';
+    updateZoomState(wrap);
+  }
+  document.querySelectorAll('.mermaid-wrap').forEach(function(wrap) {
+    wrap.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      var target = wrap.querySelector('.mermaid');
+      var current = parseFloat(target.dataset.zoom || '1');
+      var factor = e.deltaY < 0 ? 1.1 : 0.9;
+      var next = Math.min(Math.max(current * factor, 0.3), 5);
+      target.dataset.zoom = next;
+      target.style.transform = 'scale(' + next + ')';
+      updateZoomState(wrap);
+    }, { passive: false });
+    var startX, startY, scrollL, scrollT;
+    wrap.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.zoom-controls')) return;
+      var target = wrap.querySelector('.mermaid');
+      if (parseFloat(target.dataset.zoom || '1') <= 1) return;
+      wrap.classList.add('is-panning'); startX = e.clientX; startY = e.clientY;
+      scrollL = wrap.scrollLeft; scrollT = wrap.scrollTop;
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!wrap.classList.contains('is-panning')) return;
+      wrap.scrollLeft = scrollL - (e.clientX - startX);
+      wrap.scrollTop = scrollT - (e.clientY - startY);
+    });
+    window.addEventListener('mouseup', function() { wrap.classList.remove('is-panning'); });
+  });
+  (function() {
+    var strip = document.getElementById('control-strip');
+    var links = strip.querySelectorAll('a');
+    var sections = [];
+    links.forEach(function(link) {
+      var id = link.getAttribute('href').slice(1);
+      var el = document.getElementById(id);
+      if (el) sections.push({ link: link, el: el });
+    });
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        links.forEach(function(link) { link.classList.remove('active'); });
+        var match = sections.find(function(section) { return section.el === entry.target; });
+        if (!match) return;
+        match.link.classList.add('active');
+        match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      });
+    }, { rootMargin: '-18% 0px -68% 0px' });
+    sections.forEach(function(section) { observer.observe(section.el); });
+    links.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var id = link.getAttribute('href').slice(1);
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.replaceState(null, '', '#' + id);
+      });
+    });
+  })();
+</script>
+</body>
+</html>
