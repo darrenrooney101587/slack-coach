@@ -2,6 +2,23 @@ version: '3.9'
 
 services:
 
+  coach-server:
+    build: .
+    image: slack-coach:latest
+    container_name: slack_coach_server
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=server
+      - STATE_DIR=/state
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - FIREFLIES_API_KEY=${FIREFLIES_API_KEY}
+    ports:
+      - "8080:8080"
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/state:rw"
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
 
   coach-cron:
     build: .

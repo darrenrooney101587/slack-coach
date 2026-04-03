@@ -24,6 +24,7 @@ RUN poetry config virtualenvs.create false \
 
 COPY app/ ./app/
 COPY environment.py /app/
+COPY routing.yml /app/
 RUN chmod +x /app/app/entrypoint.sh /app/app/cron-runner.sh
 # Create a top-level /state directory that we will mount from the host. Keep state
 # outside of /app for clarity and to match the .env you mentioned (STATE_DIR=/state).
@@ -31,7 +32,7 @@ RUN mkdir -p /state && chown -R appuser:appuser /state
 RUN chown -R appuser:appuser /app
 USER appuser
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/app
 ENV STATE_DIR=/app/state
 ENV RUN_MODE=job
 EXPOSE 8080
