@@ -608,10 +608,10 @@ flowchart TD
       <h2>Review Mode</h2>
     </div>
     <p class="description">
-      When <code>REVIEW_MODE=true</code>, the Fireflies webhook path does not post directly to the target channel.
-      Instead, <code>server.py</code> calls <code>hold_recap()</code> which writes the Block Kit blocks and target
-      <code>channel_id</code> to <code>held_recaps.json</code> under a fresh UUID key.
-      It then calls <code>send_review_dm()</code> which posts the full recap preview to the reviewer's DM,
+      When <code>REVIEW_MODE=true</code>, an incoming meeting recap is held rather than posted immediately.
+      <code>hold_recap()</code> writes the Block Kit blocks and target <code>channel_id</code> to
+      <code>held_recaps.json</code> under a fresh UUID key.
+      <code>send_review_dm()</code> then posts the full recap preview to the reviewer's DM,
       appending <strong>Approve</strong> and <strong>Skip</strong> buttons whose <code>value</code> is the UUID.
     </p>
     <p class="description">
@@ -630,7 +630,7 @@ flowchart TD
       </div>
       <pre class="mermaid">
 flowchart TD
-  webhook["POST /webhooks/fireflies\nREVIEW_MODE=true"] --> holdRecap["hold_recap\nwrite to held_recaps.json"]
+  webhook["Recap received\nREVIEW_MODE=true"] --> holdRecap["hold_recap\nwrite to held_recaps.json"]
   holdRecap --> genId["UUID recap_id generated"]
   genId --> sendDM["send_review_dm\nPOST to reviewer DM\nwith Approve / Skip buttons"]
   sendDM --> waitReview["Recap held — waiting\nfor reviewer action"]
