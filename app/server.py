@@ -169,7 +169,7 @@ def fireflies_webhook():
         summary.get("bullet_gist"),
         summary.get("action_items"),
     ])
-    if not has_summary or not transcript.get("transcript_url"):
+    if not has_summary:
         app.logger.warning("fireflies_webhook: missing_required_fields meeting_id=%r", meeting_id)
         return jsonify({"ok": False, "error": "missing_required_fields"}), 422
 

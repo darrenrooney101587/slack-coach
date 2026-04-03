@@ -40,7 +40,6 @@ def _label_block(text: str) -> dict:
 
 def format_recap(transcript: dict) -> list:
     title = transcript.get("title") or "Meeting Recap"
-    transcript_url = transcript.get("transcript_url", "")
     summary = transcript.get("summary") or {}
     overview = summary.get("overview") or summary.get("bullet_gist") or ""
     action_items_raw = summary.get("action_items") or ""
@@ -81,11 +80,5 @@ def format_recap(transcript: dict) -> list:
             })
 
     blocks.append({"type": "divider"})
-
-    if transcript_url:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": f"<{transcript_url}|View full transcript>"},
-        })
 
     return blocks

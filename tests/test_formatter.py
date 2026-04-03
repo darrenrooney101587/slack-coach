@@ -35,7 +35,6 @@ def test_full_transcript_contains_all_sections():
     assert any("Action Items" in t for t in texts)
     assert any("Do A" in t for t in texts)
     assert any("Do B" in t for t in texts)
-    assert any("example.com" in t for t in texts)
 
 
 def test_action_items_as_string_preserved():
@@ -64,21 +63,6 @@ def test_long_overview_truncated():
     assert any("Summary" in t for t in texts)
     assert all(len(t) <= 3000 for t in texts)
 
-
-def test_missing_transcript_url_omits_link_section():
-    transcript = {"summary": {"overview": "Some notes"}}
-    blocks = format_recap(transcript)
-
-    texts = _all_mrkdwn_texts(blocks)
-    assert not any("|View full transcript>" in t for t in texts)
-
-
-def test_empty_transcript_url_omits_link_section():
-    transcript = {"transcript_url": "", "summary": {"overview": "Some notes"}}
-    blocks = format_recap(transcript)
-
-    texts = _all_mrkdwn_texts(blocks)
-    assert not any("|View full transcript>" in t for t in texts)
 
 
 def test_long_title_truncated_in_header():
