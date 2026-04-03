@@ -9,7 +9,3 @@ rules:
     channels:
       - "U074ZR6DJKZ"
       - "U0327158VA8"
-  - match_field: "title"
-    pattern: "Adrian 1:1"
-    channels:
-      - "U0327158VA8"
