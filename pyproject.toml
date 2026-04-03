@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["darren.rooney <darren.rooney101587@outlook.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
@@ -12,6 +13,7 @@ requests = "2.31.0"
 PyYAML = ">=6.0.1"
 Flask = "2.3.3"
 slack-bolt = "^1.20.0"
+python-dotenv = "^1.2.2"
 
 [tool.poetry.group.dev]
 optional = false

@@ -43,36 +43,31 @@ MULTI_RULE_CONFIG = {
 
 def test_organizer_email_match_routes_to_rule_channel():
     transcript = {"organizer_email": "eng-lead@eng.example.com", "title": "Weekly Sync"}
-    result = resolve_channel(transcript, EMAIL_RULE_CONFIG)
-    assert result == "CENG001"
+    assert resolve_channel(transcript, EMAIL_RULE_CONFIG) == ["CENG001"]
 
 
 def test_title_match_routes_to_rule_channel():
     transcript = {"organizer_email": "alice@other.com", "title": "Q2 Design Review"}
-    result = resolve_channel(transcript, TITLE_RULE_CONFIG)
-    assert result == "CDESIGN1"
+    assert resolve_channel(transcript, TITLE_RULE_CONFIG) == ["CDESIGN1"]
 
 
 def test_title_match_is_case_insensitive():
     transcript = {"organizer_email": "alice@other.com", "title": "DESIGN REVIEW planning"}
-    result = resolve_channel(transcript, TITLE_RULE_CONFIG)
-    assert result == "CDESIGN1"
+    assert resolve_channel(transcript, TITLE_RULE_CONFIG) == ["CDESIGN1"]
 
 
 def test_no_rule_matches_falls_back_to_default_channel():
     transcript = {"organizer_email": "unknown@other.com", "title": "Random Meeting"}
-    result = resolve_channel(transcript, EMAIL_RULE_CONFIG)
-    assert result == "CDEFAULT"
+    assert resolve_channel(transcript, EMAIL_RULE_CONFIG) == ["CDEFAULT"]
 
 
 def test_empty_rules_list_falls_back_to_default_channel():
     config = {"default_channel": "CDEFAULT", "rules": []}
     transcript = {"organizer_email": "someone@example.com", "title": "Some Meeting"}
-    result = resolve_channel(transcript, config)
-    assert result == "CDEFAULT"
+    assert resolve_channel(transcript, config) == ["CDEFAULT"]
 
 
-def test_missing_default_channel_and_no_match_returns_empty_string():
+def test_missing_default_channel_and_no_match_returns_empty_list():
     config = {
         "rules": [
             {
@@ -83,26 +78,22 @@ def test_missing_default_channel_and_no_match_returns_empty_string():
         ]
     }
     transcript = {"organizer_email": "user@other.com", "title": "Meeting"}
-    result = resolve_channel(transcript, config)
-    assert result == ""
+    assert resolve_channel(transcript, config) == []
 
 
 def test_first_matching_rule_wins():
     transcript = {"organizer_email": "alice@example.com", "title": "planning session"}
-    result = resolve_channel(transcript, MULTI_RULE_CONFIG)
-    assert result == "CALICE"
+    assert resolve_channel(transcript, MULTI_RULE_CONFIG) == ["CALICE"]
 
 
 def test_second_rule_matches_when_first_does_not():
     transcript = {"organizer_email": "bob@example.com", "title": "planning session"}
-    result = resolve_channel(transcript, MULTI_RULE_CONFIG)
-    assert result == "CPLANNING"
+    assert resolve_channel(transcript, MULTI_RULE_CONFIG) == ["CPLANNING"]
 
 
 def test_missing_transcript_field_does_not_raise():
     transcript = {}
-    result = resolve_channel(transcript, EMAIL_RULE_CONFIG)
-    assert result == "CDEFAULT"
+    assert resolve_channel(transcript, EMAIL_RULE_CONFIG) == ["CDEFAULT"]
 
 
 def test_unknown_match_field_is_skipped():
@@ -117,8 +108,22 @@ def test_unknown_match_field_is_skipped():
         ],
     }
     transcript = {"organizer_email": "alice@example.com", "title": "Meeting"}
-    result = resolve_channel(transcript, config)
-    assert result == "CDEFAULT"
+    assert resolve_channel(transcript, config) == ["CDEFAULT"]
+
+
+def test_channels_list_rule_returns_all_targets():
+    config = {
+        "default_channel": "CDEFAULT",
+        "rules": [
+            {
+                "match_field": "title",
+                "pattern": "WingSwept",
+                "channels": ["U074ZR6DJKZ", "U0327158VA8"],
+            }
+        ],
+    }
+    transcript = {"title": "WingSwept Discussion | Darren <> Pavlo"}
+    assert resolve_channel(transcript, config) == ["U074ZR6DJKZ", "U0327158VA8"]
 
 
 def test_load_routing_config_reads_yaml_file(tmp_path):

@@ -5,6 +5,11 @@ import time
 import hmac
 import hashlib
 from flask import Flask, request, jsonify, abort
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from environment import load_env
+load_env()
 
 from votes import record_vote
 from fireflies import verify_fireflies_signature, fetch_transcript
@@ -14,13 +19,17 @@ from slack import post_recap, send_review_dm
 from review import hold_recap
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
 STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
 FIREFLIES_WEBHOOK_SECRET = os.environ.get("FIREFLIES_WEBHOOK_SECRET")
 FIREFLIES_API_KEY = os.environ.get("FIREFLIES_API_KEY")
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
-ROUTING_CONFIG_FILE = os.environ.get("ROUTING_CONFIG_FILE", "/app/routing.yml")
+ROUTING_CONFIG_FILE = os.environ.get(
+    "ROUTING_CONFIG_FILE",
+    os.path.join(os.path.dirname(__file__), '..', 'routing.yml')
+)
 REVIEW_MODE = os.environ.get("REVIEW_MODE", "").lower() == "true"
 REVIEWER_USER_ID = os.environ.get("REVIEWER_USER_ID", "")
 
@@ -127,23 +136,32 @@ def fireflies_webhook():
         if not verify_fireflies_signature(FIREFLIES_WEBHOOK_SECRET, raw_body, sig):
             abort(403)
 
+    app.logger.info("fireflies_webhook: raw_body=%s", raw_body.decode("utf-8", errors="replace"))
+
     try:
         payload = json.loads(raw_body)
     except (json.JSONDecodeError, ValueError):
+        app.logger.warning("fireflies_webhook: invalid JSON body")
         return jsonify({"ok": False, "error": "invalid_json"}), 400
 
-    meeting_id = payload.get("meetingId")
-    if not meeting_id:
-        return jsonify({"ok": False, "error": "missing_meetingId"}), 400
+    app.logger.info("fireflies_webhook: payload=%s", payload)
 
-    event_type = payload.get("eventType", "")
-    if event_type != "Transcription completed":
-        return jsonify({"ok": True, "skipped": True}), 200
+    meeting_id = payload.get("meeting_id") or payload.get("meetingId")
+    if not meeting_id:
+        app.logger.warning("fireflies_webhook: missing meeting_id; payload keys=%s", list(payload.keys()))
+        return jsonify({"ok": False, "error": "missing_meeting_id"}), 400
+
+    event_type = payload.get("event") or payload.get("eventType", "")
+    app.logger.info("fireflies_webhook: event_type=%r meeting_id=%r", event_type, meeting_id)
 
     if not FIREFLIES_API_KEY:
+        app.logger.error("fireflies_webhook: FIREFLIES_API_KEY not configured")
         return jsonify({"ok": False, "error": "no_api_key"}), 500
 
     transcript = fetch_transcript(meeting_id, FIREFLIES_API_KEY)
+    if not transcript:
+        app.logger.warning("fireflies_webhook: transcript_fetch_failed meeting_id=%r", meeting_id)
+        return jsonify({"ok": False, "error": "transcript_fetch_failed"}), 500
 
     summary = transcript.get("summary") or {}
     has_summary = any([
@@ -152,37 +170,42 @@ def fireflies_webhook():
         summary.get("action_items"),
     ])
     if not has_summary or not transcript.get("transcript_url"):
+        app.logger.warning("fireflies_webhook: missing_required_fields meeting_id=%r", meeting_id)
         return jsonify({"ok": False, "error": "missing_required_fields"}), 422
 
     blocks = format_recap(transcript)
     config = _get_routing_config()
-    channel_id = resolve_channel(transcript, config)
+    channels = resolve_channel(transcript, config)
+    app.logger.info("fireflies_webhook: resolved channels=%r meeting_id=%r", channels, meeting_id)
 
-    if not channel_id:
+    if not channels:
+        app.logger.warning("fireflies_webhook: no_routing_target meeting_id=%r", meeting_id)
         return jsonify({"ok": False, "error": "no_routing_target"}), 500
 
     if not SLACK_BOT_TOKEN:
+        app.logger.error("fireflies_webhook: SLACK_BOT_TOKEN not configured")
         return jsonify({"ok": False, "error": "no_bot_token"}), 500
 
     if REVIEW_MODE:
         if not REVIEWER_USER_ID:
             return jsonify({"ok": False, "error": "no_reviewer_configured"}), 500
-        recap_id = hold_recap(blocks, channel_id, STATE_DIR)
+        recap_id = hold_recap(blocks, channels[0], STATE_DIR)
         try:
-            send_review_dm(recap_id, blocks, channel_id, REVIEWER_USER_ID, SLACK_BOT_TOKEN)
+            send_review_dm(recap_id, blocks, channels[0], REVIEWER_USER_ID, SLACK_BOT_TOKEN)
         except Exception as e:
             app.logger.error(f"Failed to send review DM: {e}")
             return jsonify({"ok": False, "error": "reviewer_dm_failed"}), 500
         return jsonify({"ok": True, "held": True, "recap_id": recap_id}), 200
     else:
-        try:
-            post_recap(blocks, channel_id, SLACK_BOT_TOKEN)
-        except RuntimeError as e:
-            error_str = str(e)
-            if "not_in_channel" in error_str:
-                return jsonify({"ok": False, "error": "bot_not_in_channel", "channel": channel_id}), 403
-            app.logger.error(f"Slack posting failed: {e}")
-            return jsonify({"ok": False, "error": "slack_post_failed"}), 500
+        for channel_id in channels:
+            try:
+                post_recap(blocks, channel_id, SLACK_BOT_TOKEN)
+            except RuntimeError as e:
+                error_str = str(e)
+                if "not_in_channel" in error_str:
+                    return jsonify({"ok": False, "error": "bot_not_in_channel", "channel": channel_id}), 403
+                app.logger.error(f"Slack posting failed for channel {channel_id}: {e}")
+                return jsonify({"ok": False, "error": "slack_post_failed"}), 500
         return jsonify({"ok": True}), 200
 
 

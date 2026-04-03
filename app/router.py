@@ -8,12 +8,11 @@ def load_routing_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def resolve_channel(transcript: dict, config: dict) -> str:
+def resolve_channel(transcript: dict, config: dict) -> list[str]:
     rules = config.get("rules", [])
     for rule in rules:
         field = rule.get("match_field", "")
         pattern = rule.get("pattern", "")
-        channel = rule.get("channel", "")
 
         value = ""
         if field == "title":
@@ -22,6 +21,9 @@ def resolve_channel(transcript: dict, config: dict) -> str:
             value = transcript.get("organizer_email") or ""
 
         if pattern and value and re.search(pattern, value, re.IGNORECASE):
-            return channel
+            if "channels" in rule:
+                return rule["channels"]
+            return [rule["channel"]]
 
-    return config.get("default_channel", "")
+    default = config.get("default_channel", "")
+    return [default] if default else []
