@@ -12,12 +12,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from environment import load_env
 load_env()
 
-from votes import record_vote
-from fireflies import verify_fireflies_signature, fetch_transcript
-from formatter import format_recap
-from router import resolve_channel, load_routing_config
-from slack import post_recap, send_review_dm
-from review import hold_recap
+from .votes import record_vote
+from .fireflies import verify_fireflies_signature, fetch_transcript
+from .formatter import format_recap
+from .router import resolve_channel, load_routing_config
+from .slack import post_recap, send_review_dm
+from .review import hold_recap
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
