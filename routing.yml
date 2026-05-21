@@ -1,11 +1,21 @@
-# All channel values must be Slack channel IDs (e.g. C0123456789).
-# Channel names cause channel_not_found for private channels.
-# Bot must be invited to any private channel before routing to it.
+# Channel/DM values can be:
+#   C... — Slack channel ID (bot must be invited to private channels)
+#   U... — Slack user ID (bot DMs that user directly)
+#   D... — existing DM channel ID between the bot and a user
 default_channel: "C0ADL1XCJ76" # test-dm
 
 rules:
   - match_field: "title"
+    pattern: "Pavlo 1:1"
+    channels:
+      - "D075C4Y415K" # Pavlo DM
+
+  - match_field: "title"
     pattern: "\\[Daily Standup\\] DINO"
     channels:
-      - "U074ZR6DJKZ"
-      - "U0327158VA8"
+      - "C02J9QC4R8E"
+
+  - match_field: "title"
+    pattern: "\\[Stand-Up\\] VIEW Team"
+    channels:
+      - "C060APKD92B"
