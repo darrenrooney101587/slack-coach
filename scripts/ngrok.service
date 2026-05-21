@@ -1,0 +1,17 @@
+[Unit]
+Description=ngrok tunnel for slack-coach
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change to the EC2 user that owns the ngrok config (~/.config/ngrok/ngrok.yml)
+User=ec2-user
+ExecStart=/usr/local/bin/ngrok http 8080 --log=stdout
+Restart=on-failure
+RestartSec=5s
+# Expose the local API so get-ngrok-url.sh can read the tunnel URL
+Environment=NGROK_API_ADDR=localhost:4040
+
+[Install]
+WantedBy=multi-user.target
