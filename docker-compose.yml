@@ -13,6 +13,7 @@ services:
       - STATE_DIR=/state
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - FIREFLIES_API_KEY=${FIREFLIES_API_KEY}
+      - PYTHONPATH=/app:/app/app
     ports:
       - "8080:8080"
     volumes:

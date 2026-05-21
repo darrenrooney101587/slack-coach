@@ -39,7 +39,7 @@ def client(monkeypatch):
         yield c
 
 
-def _post_with_signature(client, body: bytes, secret: str = TEST_SECRET, event_type: str = "Transcription completed", meeting_id: str = TEST_MEETING_ID):
+def _post_with_signature(client, body: bytes, secret: str = TEST_SECRET, event_type: str = "meeting.summarized", meeting_id: str = TEST_MEETING_ID):
     sig = _make_signature(secret, body)
     return client.post(
         "/webhooks/fireflies",
@@ -56,7 +56,7 @@ def test_valid_transcription_completed_returns_200_with_blocks(client, monkeypat
     calls = []
     monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: calls.append((blocks, channel, token)))
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 200
@@ -65,7 +65,7 @@ def test_valid_transcription_completed_returns_200_with_blocks(client, monkeypat
 
 
 def test_invalid_signature_returns_403(client):
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = client.post(
         "/webhooks/fireflies",
         data=body,
@@ -77,7 +77,7 @@ def test_invalid_signature_returns_403(client):
 
 
 def test_missing_signature_header_returns_403(client):
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = client.post(
         "/webhooks/fireflies",
         data=body,
@@ -102,7 +102,7 @@ def test_malformed_json_returns_400(client, monkeypatch):
 
 
 def test_missing_meeting_id_returns_400(client):
-    body = json.dumps({"eventType": "Transcription completed"}).encode()
+    body = json.dumps({"eventType": "meeting.summarized"}).encode()
     sig = _make_signature(TEST_SECRET, body)
     resp = client.post(
         "/webhooks/fireflies",
@@ -112,7 +112,7 @@ def test_missing_meeting_id_returns_400(client):
     )
 
     assert resp.status_code == 400
-    assert resp.get_json()["error"] == "missing_meetingId"
+    assert resp.get_json()["error"] == "missing_meeting_id"
 
 
 def test_unrecognized_event_type_returns_200_skipped(client):
@@ -132,7 +132,7 @@ def test_unrecognized_event_type_returns_200_skipped(client):
 def test_graphql_response_missing_required_fields_returns_422(client, monkeypatch):
     monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: {})
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 422
@@ -146,7 +146,7 @@ def test_no_signature_verification_when_secret_not_configured(monkeypatch):
     server.app.config["TESTING"] = True
 
     with server.app.test_client() as c:
-        body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+        body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
         resp = c.post(
             "/webhooks/fireflies",
             data=body,
@@ -163,7 +163,7 @@ def test_webhook_posts_to_slack_and_returns_200(client, monkeypatch):
     calls = []
     monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: calls.append((blocks, channel, token)))
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 200
@@ -177,7 +177,7 @@ def test_webhook_no_routing_target_returns_500(client, monkeypatch):
     monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: FULL_TRANSCRIPT)
     monkeypatch.setattr(server, "_get_routing_config", lambda: {})
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 500
@@ -189,7 +189,7 @@ def test_webhook_no_bot_token_returns_500(client, monkeypatch):
     monkeypatch.setattr(server, "_get_routing_config", lambda: {"default_channel": "CTEST001", "rules": []})
     monkeypatch.setattr(server, "SLACK_BOT_TOKEN", None)
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 500
@@ -202,7 +202,7 @@ def test_webhook_not_in_channel_returns_403(client, monkeypatch):
     monkeypatch.setattr(server, "SLACK_BOT_TOKEN", "xoxb-test")
     monkeypatch.setattr(server, "post_recap", lambda blocks, channel, token: (_ for _ in ()).throw(RuntimeError("Slack API error: not_in_channel")))
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 403
@@ -229,7 +229,7 @@ def test_review_mode_holds_recap_and_returns_held(client, monkeypatch):
     monkeypatch.setattr(server, "send_review_dm", mock_send_dm)
     monkeypatch.setattr(server, "post_recap", mock_post)
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 200
@@ -252,7 +252,7 @@ def test_review_mode_missing_reviewer_returns_500(client, monkeypatch):
     mock_hold = MagicMock()
     monkeypatch.setattr(server, "hold_recap", mock_hold)
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 500
@@ -269,11 +269,29 @@ def test_review_mode_dm_failure_returns_500(client, monkeypatch):
     monkeypatch.setattr(server, "hold_recap", MagicMock(return_value="recap-xyz"))
     monkeypatch.setattr(server, "send_review_dm", MagicMock(side_effect=RuntimeError("dm_failed")))
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 500
     assert resp.get_json()["error"] == "reviewer_dm_failed"
+
+
+def test_probe_meeting_id_returns_200(client, monkeypatch):
+    body = json.dumps({"meetingId": "test_00000000", "eventType": "meeting.summarized"}).encode()
+    resp = _post_with_signature(client, body, meeting_id="test_00000000")
+
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+
+
+def test_fetch_transcript_exception_returns_500(client, monkeypatch):
+    monkeypatch.setattr(server, "fetch_transcript", lambda mid, key: (_ for _ in ()).throw(RuntimeError("connection error")))
+
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
+    resp = _post_with_signature(client, body)
+
+    assert resp.status_code == 500
+    assert resp.get_json()["error"] == "transcript_fetch_failed"
 
 
 def test_review_mode_false_posts_directly(client, monkeypatch):
@@ -286,7 +304,7 @@ def test_review_mode_false_posts_directly(client, monkeypatch):
     monkeypatch.setattr(server, "post_recap", mock_post)
     monkeypatch.setattr(server, "hold_recap", mock_hold)
 
-    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "Transcription completed"}).encode()
+    body = json.dumps({"meetingId": TEST_MEETING_ID, "eventType": "meeting.summarized"}).encode()
     resp = _post_with_signature(client, body)
 
     assert resp.status_code == 200

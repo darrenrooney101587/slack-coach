@@ -4,6 +4,7 @@ import json
 import time
 import hmac
 import hashlib
+import logging
 from flask import Flask, request, jsonify, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -20,6 +21,8 @@ from review import hold_recap
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.logger.setLevel(logging.INFO)
+logging.getLogger("router").setLevel(logging.INFO)
 
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
 STATE_DIR = os.environ.get('STATE_DIR', '/app/state')
@@ -154,12 +157,25 @@ def fireflies_webhook():
     event_type = payload.get("event") or payload.get("eventType", "")
     app.logger.info("fireflies_webhook: event_type=%r meeting_id=%r", event_type, meeting_id)
 
+    if event_type != "meeting.summarized":
+        app.logger.info("fireflies_webhook: event_skipped event_type=%r meeting_id=%r", event_type, meeting_id)
+        return jsonify({"ok": True, "skipped": True}), 200
+
+    if meeting_id.startswith("test_"):
+        app.logger.info("fireflies_webhook: probe_ignored meeting_id=%r", meeting_id)
+        return jsonify({"ok": True}), 200
+
     if not FIREFLIES_API_KEY:
         app.logger.error("fireflies_webhook: FIREFLIES_API_KEY not configured")
         return jsonify({"ok": False, "error": "no_api_key"}), 500
 
-    transcript = fetch_transcript(meeting_id, FIREFLIES_API_KEY)
-    if not transcript:
+    try:
+        transcript = fetch_transcript(meeting_id, FIREFLIES_API_KEY)
+    except Exception as e:
+        app.logger.error("fireflies_webhook: transcript_fetch_error meeting_id=%r error=%r", meeting_id, str(e))
+        return jsonify({"ok": False, "error": "transcript_fetch_failed"}), 500
+
+    if transcript is None:
         app.logger.warning("fireflies_webhook: transcript_fetch_failed meeting_id=%r", meeting_id)
         return jsonify({"ok": False, "error": "transcript_fetch_failed"}), 500
 
