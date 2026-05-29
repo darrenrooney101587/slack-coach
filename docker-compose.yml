@@ -2,25 +2,6 @@ version: '3.9'
 
 services:
 
-  coach-server:
-    build: .
-    image: slack-coach:latest
-    container_name: slack_coach_server
-    env_file:
-      - .env
-    environment:
-      - RUN_MODE=server
-      - STATE_DIR=/state
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
-      - FIREFLIES_API_KEY=${FIREFLIES_API_KEY}
-      - PYTHONPATH=/app:/app/app
-    ports:
-      - "8080:8080"
-    volumes:
-      - "${HOST_STATE_DIR:-./state}:/state:rw"
-    restart: unless-stopped
-    user: "${UID:-1000}:${GID:-1000}"
-
   coach-socket:
     build: .
     image: slack-coach:latest
@@ -38,3 +19,25 @@ services:
       - "${HOST_STATE_DIR:-./state}:/state:rw"
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
+
+  coach-cron:
+    build: .
+    image: slack-coach:latest
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=job
+      - STATE_DIR=/state
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_MODE=bot
+      - SLACK_CHANNEL_ID_VIEW=${SLACK_CHANNEL_ID_VIEW}
+      - SLACK_CHANNEL_ID_DATA_ENG=${SLACK_CHANNEL_ID_DATA_ENG}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - PYTHONPATH=/app:/app/app
+    volumes:
+      - "${HOST_STATE_DIR:-./state}:/state:rw"
+    user: "${UID:-1000}:${GID:-1000}"
+    profiles:
+      - cron
