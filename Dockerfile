@@ -23,7 +23,6 @@ RUN poetry config virtualenvs.create false \
 
 COPY app/ ./app/
 COPY environment.py /app/
-COPY routing.yml /app/
 RUN chmod +x /app/app/entrypoint.sh
 # Create a top-level /state directory that we will mount from the host. Keep state
 # outside of /app for clarity and to match the .env you mentioned (STATE_DIR=/state).
