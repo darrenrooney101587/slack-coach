@@ -11,6 +11,6 @@ echo "==> Building Docker image..."
 docker build -t slack-coach:latest .
 
 echo "==> Starting containers..."
-docker compose up -d coach-socket
+docker compose up -d coach-socket coach-cron
 
 echo "==> Done."

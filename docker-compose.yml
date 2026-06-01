@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   coach-socket:
@@ -23,10 +21,12 @@ services:
   coach-cron:
     build: .
     image: slack-coach:latest
+    container_name: slack_coach_cron
     env_file:
       - .env
     environment:
-      - RUN_MODE=job
+      - RUN_MODE=cron
+      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 10 * * 1-5}
       - STATE_DIR=/state
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_MODE=bot
@@ -38,6 +38,4 @@ services:
       - PYTHONPATH=/app:/app/app
     volumes:
       - "${HOST_STATE_DIR:-./state}:/state:rw"
-    user: "${UID:-1000}:${GID:-1000}"
-    profiles:
-      - cron
+    restart: unless-stopped

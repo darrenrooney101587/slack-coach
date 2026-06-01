@@ -13,6 +13,9 @@ if [ "$RUN_MODE" = "socket" ]; then
 elif [ "$RUN_MODE" = "job" ]; then
   echo "Running daily coach job"
   exec python -m app.main
+elif [ "$RUN_MODE" = "cron" ]; then
+  echo "Starting cron scheduler"
+  exec /app/app/cron-runner.sh
 else
   echo "Unknown RUN_MODE: ${RUN_MODE}" >&2
   exit 1
