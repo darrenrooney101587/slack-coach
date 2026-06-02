@@ -39,3 +39,4 @@ services:
     volumes:
       - "${HOST_STATE_DIR:-./state}:/state:rw"
     restart: unless-stopped
+    user: "0:0"

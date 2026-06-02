@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$(id -u)" -ne 0 ]; then
+  echo "[cron] ERROR: cron daemon requires root. Container must run with user: \"0:0\"" >&2
+  exit 1
+fi
+
 CRON_SCHEDULE="${CRON_SCHEDULE:-0 10 * * 1-5}"
 CRON_CMD="${CRON_CMD:-python -m app.main --all}"
 
